@@ -1,0 +1,164 @@
+{
+  "constellations": [
+    {
+      "name": "Constelación del Burro",
+      "starts": [
+        {
+          "id": 1,
+          "label": "Alpha1",
+          "linkedTo": [
+            {
+              "starId": 2,
+              "distance": 120
+            },
+            {
+              "starId": 4,
+              "distance": 87
+            },
+            {
+              "starId": 5,
+              "distance": 101
+            }
+          ],
+          "radius": 0.4,
+          "timeToEat": 3,
+          "amountOfEnergy": 1,
+          "coordenates": {
+            "x": 25,
+            "y": 34
+          },
+          "hypergiant": false
+        },
+        {
+          "id": 2,
+          "label": "Beta23",
+          "linkedTo": [
+            {
+              "starId": 1,
+              "distance": 120
+            },
+            {
+              "starId": 7,
+              "distance": 45
+            },
+            {
+              "starId": 3,
+              "distance": 17
+            }
+          ],
+          "radius": 0.2,
+          "timeToEat": 2,
+          "amountOfEnergy": 2,
+          "coordenates": {
+            "x": 37,
+            "y": 15
+          },
+          "hypergiant": false
+        },
+        {
+          "id": 3,
+          "label": "Alpha53",
+          "linkedTo": [
+            {
+              "starId": 5,
+              "distance": 86
+            },
+            {
+              "starId": 2,
+              "distance": 17
+            },
+            {
+              "starId": 9,
+              "distance": 15
+            }
+          ],
+          "radius": 1,
+          "timeToEat": 1,
+          "amountOfEnergy": 3,
+          "coordenates": {
+            "x": 75,
+            "y": 43
+          },
+          "hypergiant": true
+        }
+      ]
+    },
+    {
+      "name": "Constelación de la Araña",
+      "starts": [
+        {
+          "id": 12,
+          "label": "Beta178",
+          "linkedTo": [
+            {
+              "starId": 14,
+              "distance": 120
+            },
+            {
+              "starId": 17,
+              "distance": 87
+            },
+            {
+              "starId": 11,
+              "distance": 101
+            }
+          ],
+          "radius": 0.6,
+          "timeToEat": 3,
+          "amountOfEnergy": 1,
+          "coordenates": {
+            "x": 123,
+            "y": 167
+          },
+          "hypergiant": false
+        },
+        {
+          "id": 13,
+          "label": "Gama23",
+          "linkedTo": [
+            {
+              "starId": 15,
+              "distance": 120
+            },
+            {
+              "starId": 17,
+              "distance": 45
+            }
+          ],
+          "radius": 0.8,
+          "timeToEat": 3,
+          "amountOfEnergy": 5,
+          "coordenates": {
+            "x": 189,
+            "y": 146
+          },
+          "hypergiant": true
+        },
+        {
+          "id": 3,
+          "label": "Alpha53",
+          "linkedTo": [
+            {
+              "starId": 12,
+              "distance": 15
+            }
+          ],
+          "radius": 1,
+          "timeToEat": 1,
+          "amountOfEnergy": 3,
+          "coordenates": {
+            "x": 75,
+            "y": 43
+          },
+          "hypergiant": true
+        }
+      ]
+    }
+  ],
+  "burroenergiaInicial": 100,
+  "estadoSalud": "Excelente",
+  "pasto": 300,
+  "number": 123,
+  "startAge": 12,
+  "deathAge": 3567
+}

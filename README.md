@@ -4,7 +4,6 @@ proyecto_grafos_pygame/
 │  ├─ icons/
 │  └─ fonts/
 ├─ data/
-│  ├─ constellations.json
 │  ├─ galaxies.json
 │  └─ burro.json
 ├─ src/

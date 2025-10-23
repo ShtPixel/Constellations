@@ -7,62 +7,21 @@ proyecto_grafos_pygame/
 │  ├─ galaxies.json
 │  └─ burro.json
 ├─ src/
-│  ├─ main.py
-│  ├─ settings.py
-│  ├─ app.py
+│  ├─ main.py                      # punto de entrada
+│  ├─ app.py                       # loop principal pygame
+│  ├─ settings.py                  # configuraciones globales
 │  ├─ core/
-│  │  ├─ models/
-│  │  │  ├─ star.py
-│  │  │  ├─ constellation.py
-│  │  │  ├─ galaxy.py
-│  │  │  ├─ donkey.py
-│  │  │  └─ graph.py
-│  │  ├─ services/
-│  │  │  ├─ json_loader.py
-│  │  │  ├─ graph_builder.py
-│  │  │  ├─ simulator.py
-│  │  │  └─ report_generator.py
-│  │  └─ interfaces/
-│  │     ├─ i_loader.py
-│  │     ├─ i_renderer.py
-│  │     └─ i_simulator.py
+│  │  ├─ models.py                 # Donkey, Star, Edge, Constellation, Graph
+│  │  ├─ loader.py                 # carga y validación del JSON
+│  │  ├─ simulator.py              # lógica de rutas, energía, salud, etc.
+│  │  └─ report.py                 # registro de resultados
 │  ├─ render/
-│  │  ├─ renderer.py
-│  │  ├─ animator.py
-│  │  └─ hud.py
-│  ├─ gui/
-│  │  ├─ ui_manager.py
-│  │  ├─ buttons.py
-│  │  └─ panels.py
+│  │  ├─ renderer.py               # dibuja el grafo, el burro y las animaciones
+│  │  └─ hud.py                    # interfaz (botones, paneles, etc.)
 │  ├─ sound/
-│  │  └─ sound_manager.py
+│  │  └─ sound_manager.py          # sonidos (muerte, click, etc.)
 │  └─ utils/
 │     ├─ math_utils.py
 │     └─ colors.py
-└─ tests/
-
-
-
-Las siguientes son laas descripciones y el uso de la etiquetas con base a las constelaciones en el archivo .JSON
-
-Campo            Descripción                                          Uso                          
-
-`id`             Identificador único                                  Clave principal              
-`label`          Nombre visible                                       Mostrar en el mapa           
-`linkedTo`       Lista de conexiones y distancias                     Aristas                      
-`radius`         Tamaño del nodo                                      Escala visual                
-`timeToEat`      Tiempo para consumir 1 kg de pasto                   Cálculo energético           
-`amountOfEnergy` Energía obtenida por pasto (parecido a bonificación) Factor para comer            
-`coordenates`    Posición (x, y)                                      Dibujado en Pygame           
-`hypergiant`     Si la estrella es hipergigante                       Permite salto entre galaxias 
-
-y estas las de el burro o nave
-
- Campo                  Interpretación                      Uso                                    
-
- `burroenergiaInicial`  % de energía inicial (1–100)        `Donkey.energy_pct`                    
- `estadoSalud`          Salud inicial                       define rendimiento al comer/investigar 
- `pasto`                kg disponibles en bodega            `Donkey.fodder_kg`                     
- `startAge`             Edad actual                         opcional para visualización            
- `deathAge`             Edad máxima o vida útil (años luz)  límite del viaje                       
- `number`               Número de identificación del burro  sin impacto funcional                  
+└─ README.md
+           

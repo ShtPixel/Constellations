@@ -6,169 +6,176 @@
         {
           "id": 1,
           "label": "Alpha1",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 2,
-              "distance": 120
+              "to": 2,
+              "distance": 120,
+              "blocked": false
             },
             {
-              "starId": 4,
-              "distance": 87
+              "to": 4,
+              "distance": 87,
+              "blocked": false
             },
             {
-              "starId": 5,
-              "distance": 101
+              "to": 5,
+              "distance": 101,
+              "blocked": false  
             }
           ],
           "radius": 0.4,
           "timeToEat": 3,
           "amountOfEnergy": 1,
-          "coordenates": {
-            "x": 25,
-            "y": 34
-          },
+          "x": 25,
+          "y": 34,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 2,
           "label": "Beta23",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 1,
-              "distance": 120
+              "to": 1,
+              "distance": 120,
+              "blocked": false
             },
             {
-              "starId": 7,
-              "distance": 45
+              "to": 7,
+              "distance": 45,
+              "blocked": false
             },
             {
-              "starId": 3,
-              "distance": 17
+              "to": 3,
+              "distance": 17,
+              "blocked": false
             }
           ],
           "radius": 0.2,
           "timeToEat": 2,
           "amountOfEnergy": 2,
-          "coordenates": {
-            "x": 37,
-            "y": 15
-          },
+          "x": 37,
+          "y": 15,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 3,
           "label": "Alpha53",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 5,
-              "distance": 86
+              "to": 5,
+              "distance": 86,
+              "blocked": false
             },
             {
-              "starId": 2,
-              "distance": 17
+              "to": 2,
+              "distance": 17,
+              "blocked": false
             },
             {
-              "starId": 9,
-              "distance": 15
+              "to": 9,
+              "distance": 15,
+              "blocked": false
             }
           ],
           "radius": 1,
           "timeToEat": 1,
           "amountOfEnergy": 3,
-          "coordenates": {
-            "x": 75,
-            "y": 43
-          },
+
+          "x": 75,
+          "y": 43,
           "hypergiant": true,
           "shared": true
         },
         {
           "id": 4,
           "label": "Gamma4",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 1,
-              "distance": 87
+              "to": 1,
+              "distance": 87,
+              "blocked": false
             },
             {
-              "starId": 5,
-              "distance": 65
+              "to": 5,
+              "distance": 65,
+              "blocked": false
             }
           ],
           "radius": 0.3,
           "timeToEat": 2,
           "amountOfEnergy": 2,
-          "coordenates": {
-            "x": 95,
-            "y": 78
-          },
+
+          "x": 95,
+          "y": 78,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 5,
           "label": "Delta5",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 1,
-              "distance": 101
+              "to": 1,
+              "distance": 101,
+              "blocked": false
             },
             {
-              "starId": 3,
-              "distance": 86
+              "to": 3,
+              "distance": 86,
+              "blocked": false
             },
             {
-              "starId": 4,
-              "distance": 65
+              "to": 4,
+              "distance": 65,
+              "blocked": false
             }
           ],
           "radius": 0.5,
           "timeToEat": 3,
           "amountOfEnergy": 4,
-          "coordenates": {
-            "x": 110,
-            "y": 92
-          },
+
+          "x": 110,
+          "y": 92,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 7,
           "label": "Epsilon7",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 2,
-              "distance": 45
+              "to": 2,
+              "distance": 45,
+              "blocked": false
             }
           ],
           "radius": 0.6,
           "timeToEat": 2,
           "amountOfEnergy": 3,
-          "coordenates": {
-            "x": 58,
-            "y": 29
-          },
+
+          "x": 58,
+          "y": 29,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 9,
           "label": "Zeta9",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 3,
-              "distance": 15
+              "to": 3,
+              "distance": 15,
+              "blocked": false
             }
           ],
           "radius": 0.4,
           "timeToEat": 1,
           "amountOfEnergy": 2,
-          "coordenates": {
-            "x": 82,
-            "y": 56
-          },
+
+          "x": 82,
+          "y": 56,
           "hypergiant": false,
           "shared": false
         }
@@ -180,188 +187,174 @@
         {
           "id": 12,
           "label": "Beta178",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 14,
-              "distance": 120
+              "to": 14,
+              "distance": 120,
+              "blocked": false
             },
             {
-              "starId": 17,
-              "distance": 87
+              "to": 17,
+              "distance": 87,
+              "blocked": false
             },
             {
-              "starId": 11,
-              "distance": 101
+              "to": 11,
+              "distance": 101,
+              "blocked": false
             }
           ],
           "radius": 0.6,
           "timeToEat": 3,
           "amountOfEnergy": 1,
-          "coordenates": {
-            "x": 123,
-            "y": 167
-          },
+
+          "x": 123,
+          "y": 167,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 13,
           "label": "Gama23",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 15,
-              "distance": 120
+              "to": 15,
+              "distance": 120,
+              "blocked": false
             },
             {
-              "starId": 17,
-              "distance": 45
+              "to": 17,
+              "distance": 45,
+              "blocked": false
             }
           ],
           "radius": 0.8,
           "timeToEat": 3,
           "amountOfEnergy": 5,
-          "coordenates": {
-            "x": 189,
-            "y": 146
-          },
+
+          "x": 189,
+          "y": 146,
           "hypergiant": true,
           "shared": false
         },
         {
           "id": 3,
           "label": "Alpha53",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 12,
-              "distance": 15
+              "to": 12,
+              "distance": 15,
+              "blocked": false
             }
           ],
           "radius": 1,
           "timeToEat": 1,
           "amountOfEnergy": 3,
-          "coordenates": {
-            "x": 75,
-            "y": 43
-          },
+
+          "x": 75,
+          "y": 43,
           "hypergiant": true,
           "shared": true
         },
         {
           "id": 11,
           "label": "Theta11",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 12,
-              "distance": 101
+              "to": 12,
+              "distance": 101,
+              "blocked": false
             }
           ],
           "radius": 0.4,
           "timeToEat": 2,
           "amountOfEnergy": 2,
-          "coordenates": {
-            "x": 145,
-            "y": 185
-          },
+
+          "x": 145,
+          "y": 185,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 14,
           "label": "Kappa14",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 12,
-              "distance": 120
+              "to": 12,
+              "distance": 120,
+              "blocked": false
             },
             {
-              "starId": 17,
-              "distance": 75
+              "to": 17,
+              "distance": 75,
+              "blocked": false
             }
           ],
           "radius": 0.7,
           "timeToEat": 4,
           "amountOfEnergy": 3,
-          "coordenates": {
-            "x": 102,
-            "y": 134
-          },
+          "x": 102,
+          "y": 134,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 15,
           "label": "Lambda15",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 13,
-              "distance": 120
+              "to": 13,
+              "distance": 120,
+              "blocked": false
             },
             {
-              "starId": 17,
-              "distance": 89
+              "to": 17,
+              "distance": 89,
+              "blocked": false
             }
           ],
           "radius": 0.5,
           "timeToEat": 3,
           "amountOfEnergy": 4,
-          "coordenates": {
-            "x": 167,
-            "y": 123
-          },
+          "x": 167,
+          "y": 123,
           "hypergiant": false,
           "shared": false
         },
         {
           "id": 17,
           "label": "Mu17",
-          "linkedTo": [
+          "links": [
             {
-              "starId": 12,
-              "distance": 87
+              "to": 12,
+              "distance": 87,
+              "blocked": false
             },
             {
-              "starId": 13,
-              "distance": 45
+              "to": 13,
+              "distance": 45,
+              "blocked": false
             },
             {
-              "starId": 14,
-              "distance": 75
+              "to": 14,
+              "distance": 75,
+              "blocked": false
             },
             {
-              "starId": 15,
-              "distance": 89
+              "to": 15,
+              "distance": 89,
+              "blocked": false
             }
           ],
           "radius": 0.9,
           "timeToEat": 5,
           "amountOfEnergy": 6,
-          "coordenates": {
-            "x": 156,
-            "y": 178
-          },
-          "hypergiant": true,
+          "x": 156,
+          "y": 178,
+          "hypergiant": false,
           "shared": false
         }
       ]
     }
-  ],
-  "mapScaling": {
-    "originalRange": {
-      "minX": 25,
-      "maxX": 189,
-      "minY": 15,
-      "maxY": 185
-    },
-    "targetWindowSize": {
-      "width": 800,
-      "height": 800
-    },
-    "scalingFactor": 4,
-    "scaledRange": {
-      "minX": 100,
-      "maxX": 756,
-      "minY": 60,
-      "maxY": 740
-    }
-  }
+  ]
 }

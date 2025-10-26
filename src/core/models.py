@@ -1,7 +1,6 @@
 # src/core/models.py
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-import math
 
 @dataclass
 class Link:
@@ -31,12 +30,12 @@ class Star:
                 # if same neighbor but different distance, keep minimal
                 if l.distance != distance:
                     l.distance = min(l.distance, distance)
-                l.blocked = l.blocked and blocked  # keep blocked True if both True
+                # If any source marks the link as blocked, treat it as blocked
+                l.blocked = l.blocked or blocked
                 return
         self.links.append(Link(to=to, distance=distance, blocked=blocked))
 
-    def distance_to(self, other: 'Star') -> float:
-        return math.hypot(self.x - other.x, self.y - other.y)
+    # Nota: método distance_to eliminado por no ser usado actualmente
 
 @dataclass
 class Constellation:
@@ -108,7 +107,8 @@ class Graph:
         if v in existing:
             existing_edge = existing[v]
             existing_edge.distance = min(existing_edge.distance, distance)
-            existing_edge.blocked = existing_edge.blocked and blocked
+            # If any definition says blocked, mark edge as blocked
+            existing_edge.blocked = existing_edge.blocked or blocked
         else:
             existing[v] = Edge(u=u, v=v, distance=distance, blocked=blocked)
         # also ensure a Star.links list is consistent
@@ -124,30 +124,8 @@ class Graph:
                     # also update star.links
                     self.stars[v].add_link(u, edge.distance, edge.blocked or default_blocked)
 
-    def neighbors(self, node_id: int, include_blocked: bool = False) -> List[Edge]:
-        if node_id not in self.adjacency:
-            return []
-        edges = []
-        for v, e in self.adjacency[node_id].items():
-            if not include_blocked and e.blocked:
-                continue
-            edges.append(e)
-        return edges
-
-    def toggle_edge_block(self, u: int, v: int, blocked: Optional[bool] = None):
-        if u in self.adjacency and v in self.adjacency[u]:
-            if blocked is None:
-                self.adjacency[u][v].blocked = not self.adjacency[u][v].blocked
-            else:
-                self.adjacency[u][v].blocked = blocked
-        if v in self.adjacency and u in self.adjacency[v]:
-            if blocked is None:
-                self.adjacency[v][u].blocked = not self.adjacency[v][u].blocked
-            else:
-                self.adjacency[v][u].blocked = blocked
-
-    def find_shared_stars(self) -> List[Star]:
-        return [s for s in self.stars.values() if len(s.constellations) > 1 or s.shared]
+    # Nota: métodos neighbors, toggle_edge_block y find_shared_stars
+    # eliminados por no tener usos en el repositorio actual.
 
     def hypergiant_counts(self) -> Dict[str, int]:
         counts = {}
@@ -158,3 +136,28 @@ class Graph:
                     c += 1
             counts[cname] = c
         return counts
+
+    def recompute_shared_flags(self) -> int:
+        """Recalcula el atributo 'shared' de cada estrella según pertenezca
+        a más de una constelación. Además, sincroniza star.constellations con
+        los datos de Graph.constellations.
+
+        Returns:
+            int: número de estrellas cuyo flag 'shared' cambió.
+        """
+        # Construye mapa sid -> conjunto de constelaciones en las que aparece
+        memberships: Dict[int, set] = {}
+        for cname, const in self.constellations.items():
+            for sid in const.stars:
+                memberships.setdefault(sid, set()).add(cname)
+
+        changed = 0
+        for sid, star in self.stars.items():
+            consts = sorted(memberships.get(sid, set()))
+            # Sincroniza la lista de constelaciones en el objeto Star
+            prev_shared = star.shared
+            star.constellations = consts
+            star.shared = len(consts) > 1
+            if star.shared != prev_shared:
+                changed += 1
+        return changed

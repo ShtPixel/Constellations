@@ -1,277 +1,65 @@
 {
   "constellations": [
     {
-      "name": "Constelación del Burro",
+      "name": "Constelación de la Patrona (corazón)",
       "stars": [
         {
-          "id": 1,
-          "label": "Alpha1",
-          "links": [
-            {
-              "to": 2,
-              "distance": 120,
-              "blocked": false
-            },
-            {
-              "to": 4,
-              "distance": 87,
-              "blocked": false
-            },
-            {
-              "to": 5,
-              "distance": 101,
-              "blocked": false  
-            }
-          ],
-          "radius": 0.4,
-          "timeToEat": 3,
-          "amountOfEnergy": 1,
-          "x": 25,
-          "y": 34,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 2,
-          "label": "Beta23",
-          "links": [
-            {
-              "to": 1,
-              "distance": 120,
-              "blocked": false
-            },
-            {
-              "to": 7,
-              "distance": 45,
-              "blocked": false
-            },
-            {
-              "to": 3,
-              "distance": 17,
-              "blocked": false
-            }
-          ],
-          "radius": 0.2,
-          "timeToEat": 2,
-          "amountOfEnergy": 2,
-          "x": 37,
-          "y": 15,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 3,
-          "label": "Alpha53",
-          "links": [
-            {
-              "to": 5,
-              "distance": 86,
-              "blocked": false
-            },
-            {
-              "to": 2,
-              "distance": 17,
-              "blocked": false
-            },
-            {
-              "to": 9,
-              "distance": 15,
-              "blocked": false
-            }
-          ],
-          "radius": 1,
-          "timeToEat": 1,
-          "amountOfEnergy": 3,
-
-          "x": 75,
-          "y": 43,
-          "hypergiant": true,
-          "shared": true
-        },
-        {
-          "id": 4,
-          "label": "Gamma4",
-          "links": [
-            {
-              "to": 1,
-              "distance": 87,
-              "blocked": false
-            },
-            {
-              "to": 5,
-              "distance": 65,
-              "blocked": false
-            }
-          ],
-          "radius": 0.3,
-          "timeToEat": 2,
-          "amountOfEnergy": 2,
-
-          "x": 95,
-          "y": 78,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 5,
-          "label": "Delta5",
-          "links": [
-            {
-              "to": 1,
-              "distance": 101,
-              "blocked": false
-            },
-            {
-              "to": 3,
-              "distance": 86,
-              "blocked": false
-            },
-            {
-              "to": 4,
-              "distance": 65,
-              "blocked": false
-            }
-          ],
-          "radius": 0.5,
-          "timeToEat": 3,
-          "amountOfEnergy": 4,
-
-          "x": 110,
-          "y": 92,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 7,
-          "label": "Epsilon7",
-          "links": [
-            {
-              "to": 2,
-              "distance": 45,
-              "blocked": false
-            }
-          ],
-          "radius": 0.6,
-          "timeToEat": 2,
-          "amountOfEnergy": 3,
-
-          "x": 58,
-          "y": 29,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 9,
-          "label": "Zeta9",
-          "links": [
-            {
-              "to": 3,
-              "distance": 15,
-              "blocked": false
-            }
-          ],
-          "radius": 0.4,
-          "timeToEat": 1,
-          "amountOfEnergy": 2,
-
-          "x": 82,
-          "y": 56,
-          "hypergiant": false,
-          "shared": false
-        }
-      ]
-    },
-    {
-      "name": "Constelación de la Araña",
-      "stars": [
-        {
-          "id": 12,
+          "id": 121,
           "label": "Beta178",
           "links": [
-            {
-              "to": 14,
-              "distance": 120,
-              "blocked": false
-            },
-            {
-              "to": 17,
-              "distance": 87,
-              "blocked": false
-            },
-            {
-              "to": 11,
-              "distance": 101,
-              "blocked": false
-            }
-          ],
-          "radius": 0.6,
-          "timeToEat": 3,
-          "amountOfEnergy": 1,
-
-          "x": 123,
-          "y": 167,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 13,
-          "label": "Gama23",
-          "links": [
-            {
-              "to": 15,
-              "distance": 120,
-              "blocked": false
-            },
-            {
-              "to": 17,
-              "distance": 45,
-              "blocked": false
-            }
+            { "to": 126, "distance": 90.42, "blocked": false },
+            { "to": 122, "distance": 90.42, "blocked": false }
           ],
           "radius": 0.8,
           "timeToEat": 3,
-          "amountOfEnergy": 5,
-
-          "x": 189,
-          "y": 146,
+          "amountOfEnergy": 3,
+          "x": 400.0,
+          "y": 356.16,
+          "hypergiant": false,
+          "shared": true
+        },
+        {
+          "id": 122,
+          "label": "Gama23",
+          "links": [
+            { "to": 121, "distance": 90.42, "blocked": false },
+            { "to": 123, "distance": 123.97, "blocked": false }
+          ],
+          "radius": 1.0,
+          "timeToEat": 3,
+          "amountOfEnergy": 4,
+          "x": 467.04,
+          "y": 295.48,
           "hypergiant": true,
           "shared": false
         },
         {
-          "id": 3,
+          "id": 123,
           "label": "Alpha53",
           "links": [
-            {
-              "to": 12,
-              "distance": 15,
-              "blocked": false
-            }
+            { "to": 122, "distance": 123.97, "blocked": false },
+            { "to": 124, "distance": 170.04, "blocked": false }
           ],
-          "radius": 1,
+          "radius": 0.9,
           "timeToEat": 1,
-          "amountOfEnergy": 3,
-
-          "x": 75,
-          "y": 43,
-          "hypergiant": true,
+          "amountOfEnergy": 5,
+          "x": 530.0,
+          "y": 402.27,
+          "hypergiant": false,
           "shared": true
         },
         {
-          "id": 11,
+          "id": 124,
           "label": "Theta11",
           "links": [
-            {
-              "to": 12,
-              "distance": 101,
-              "blocked": false
-            }
+            { "to": 123, "distance": 170.04, "blocked": false },
+            { "to": 14, "distance": 22.92, "blocked": false }
           ],
-          "radius": 0.4,
+          "radius": 0.5,
           "timeToEat": 2,
-          "amountOfEnergy": 2,
-
-          "x": 145,
-          "y": 185,
+          "amountOfEnergy": 3,
+          "x": 411.46,
+          "y": 524.18,
           "hypergiant": false,
           "shared": false
         },
@@ -279,79 +67,45 @@
           "id": 14,
           "label": "Kappa14",
           "links": [
-            {
-              "to": 12,
-              "distance": 120,
-              "blocked": false
-            },
-            {
-              "to": 17,
-              "distance": 75,
-              "blocked": false
-            }
-          ],
-          "radius": 0.7,
-          "timeToEat": 4,
-          "amountOfEnergy": 3,
-          "x": 102,
-          "y": 134,
-          "hypergiant": false,
-          "shared": false
-        },
-        {
-          "id": 15,
-          "label": "Lambda15",
-          "links": [
-            {
-              "to": 13,
-              "distance": 120,
-              "blocked": false
-            },
-            {
-              "to": 17,
-              "distance": 89,
-              "blocked": false
-            }
+            { "to": 124, "distance": 22.92, "blocked": false },
+            { "to": 125, "distance": 170.04, "blocked": false }
           ],
           "radius": 0.5,
-          "timeToEat": 3,
+          "timeToEat": 4,
           "amountOfEnergy": 4,
-          "x": 167,
-          "y": 123,
+          "x": 388.54,
+          "y": 524.18,
           "hypergiant": false,
           "shared": false
         },
         {
-          "id": 17,
-          "label": "Mu17",
+          "id": 125,
+          "label": "Lambda15",
           "links": [
-            {
-              "to": 12,
-              "distance": 87,
-              "blocked": false
-            },
-            {
-              "to": 13,
-              "distance": 45,
-              "blocked": false
-            },
-            {
-              "to": 14,
-              "distance": 75,
-              "blocked": false
-            },
-            {
-              "to": 15,
-              "distance": 89,
-              "blocked": false
-            }
+            { "to": 14, "distance": 170.04, "blocked": false },
+            { "to": 126, "distance": 123.97, "blocked": false }
           ],
           "radius": 0.9,
-          "timeToEat": 5,
-          "amountOfEnergy": 6,
-          "x": 156,
-          "y": 178,
+          "timeToEat": 3,
+          "amountOfEnergy": 3,
+          "x": 270.0,
+          "y": 402.27,
           "hypergiant": false,
+          "shared": false
+        },
+        {
+          "id": 126,
+          "label": "Mu17",
+          "links": [
+            { "to": 125, "distance": 123.97, "blocked": false },
+            { "to": 121, "distance": 90.42, "blocked": false }
+          ],
+          "radius": 2.0,
+          "timeToEat": 5,
+          "amountOfEnergy": 5,
+          "x": 332.96,
+          "y": 295.48,
+          "hypergiant": true,
           "shared": false
         }
       ]

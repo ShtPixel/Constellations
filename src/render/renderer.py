@@ -1,54 +1,48 @@
-import math
 from typing import Dict, Tuple, Set
+
+# Import application settings (colors, etc.)
+try:
+	from src import settings as app_settings
+except ModuleNotFoundError:
+	import settings as app_settings
 
 try:
 	import pygame
-except Exception:  # ImportError or other init errors
+except Exception:  
 	pygame = None
 
 
 class GraphRenderer:
+	#Recibe el grafo (modelo construido por el loader) y parámetros de ventana y márgenes.
 	def __init__(self, graph, width: int = 800, height: int = 600, min_size: int = 200, margin: int = 40):
 		self.graph = graph
 		self.width = max(width, min_size)
 		self.height = max(height, min_size)
 		self.margin = margin
-		self.bg_color = (10, 10, 20)
-		self.edge_color = (200, 200, 220)
-		self.edge_blocked_color = (140, 140, 160)
-		self.shared_color = (220, 40, 40)
+		# Use centralized color settings to avoid duplication
+		self.bg_color = getattr(app_settings, "BACKGROUND", (10, 10, 20))
+		self.edge_color = getattr(app_settings, "EDGE", (200, 200, 220))
+		self.edge_blocked_color = getattr(app_settings, "EDGE_BLOCKED", (140, 140, 160))
+		self.shared_color = getattr(app_settings, "SHARED", (220, 40, 40))
 		self.constellation_colors: Dict[str, Tuple[int, int, int]] = {}
 		self._compute_palette()
 		self._compute_transform()
 
 	def _compute_palette(self):
-		# Deterministic palette based on index
+		# Palette from settings only: use name-based mapping first, then cycle PALETTE.
 		names = list(self.graph.constellations.keys())
-		n = max(1, len(names))
+		by_name = getattr(app_settings, "CONSTELLATION_COLORS", {}) or {}
+		palette = getattr(app_settings, "PALETTE", [
+			(255, 99, 132), (54, 162, 235), (255, 206, 86), (75, 192, 192),
+			(153, 102, 255), (255, 159, 64), (99, 255, 132), (132, 99, 255), (255, 99, 255)
+		])
 		for i, name in enumerate(names):
-			hue = i / n
-			self.constellation_colors[name] = self._hsv_to_rgb(hue, 0.6, 1.0)
+			if name in by_name:
+				self.constellation_colors[name] = by_name[name]
+			else:
+				self.constellation_colors[name] = palette[i % len(palette)]
 
-	@staticmethod
-	def _hsv_to_rgb(h: float, s: float, v: float) -> Tuple[int, int, int]:
-		i = int(h * 6)
-		f = h * 6 - i
-		p = int(255 * v * (1 - s))
-		q = int(255 * v * (1 - f * s))
-		t = int(255 * v * (1 - (1 - f) * s))
-		v = int(255 * v)
-		i = i % 6
-		if i == 0:
-			return (v, t, p)
-		if i == 1:
-			return (q, v, p)
-		if i == 2:
-			return (p, v, t)
-		if i == 3:
-			return (p, q, v)
-		if i == 4:
-			return (t, p, v)
-		return (v, p, q)
+		# Removed unused HSV conversion method
 
 	def _compute_transform(self):
 		# Map world (stars x,y) to screen coordinates
@@ -69,8 +63,8 @@ class GraphRenderer:
 	def world_to_screen(self, x: float, y: float) -> Tuple[int, int]:
 		sx = int(self.scale * x + self.offset_x)
 		sy = int(self.scale * y + self.offset_y)
-		# y grows downward in screen space
-		return sx, self.height - sy
+		# Pygame's Y axis grows downward already; no flip needed
+		return sx, sy
 
 	def draw(self, screen):
 		screen.fill(self.bg_color)
@@ -100,7 +94,7 @@ class GraphRenderer:
 				if not star:
 					continue
 				x, y = self.world_to_screen(star.x, star.y)
-				r = max(2, int(2 + star.radius * 2))
+				r = max(2, int(2 + star.radius * 5))
 				pygame.draw.circle(screen, color, (x, y), r)
 				# highlight shared
 				if star.shared or len(star.constellations) > 1:

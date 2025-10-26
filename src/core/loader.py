@@ -5,9 +5,9 @@ from typing import Tuple, Dict, Any
 import warnings
 
 try:
-    from src.core.models import Donkey, Graph, Star, Link, Edge
+    from src.core.models import Donkey, Graph, Star
 except ModuleNotFoundError:
-    from core.models import Donkey, Graph, Star, Link, Edge
+    from core.models import Donkey, Graph, Star
 
 DEFAULT_BURRO_KEYS = {
     "burroenergiaInicial": 100,
@@ -115,6 +115,12 @@ class Loader:
         for sid, items in occurrences.items():
             # choose the first entry for base data, but merge constellation refs
             base = items[0][1]
+            # Shared must only be true if star appears in more than one constellation
+            computed_shared = len(items) > 1
+            if base.get("shared", False) and not computed_shared:
+                warnings.warn(
+                    f"Star {sid} is marked 'shared' in JSON but only appears in one constellation; ignoring flag.")
+
             star = Star(
                 id=int(base["id"]),
                 label=base["label"],
@@ -125,7 +131,7 @@ class Loader:
                 amount_of_energy=base["amountOfEnergy"],
                 investigation_energy_cost=base["investigationEnergyCost"],
                 hypergiant=base["hypergiant"],
-                shared=(len(items) > 1) or base.get("shared", False)
+                shared=computed_shared
             )
             # add constellation names y registra en cada constelación usando Graph
             for cname, sd in items:
@@ -161,5 +167,12 @@ class Loader:
         for key, sids in coords.items():
             if len(sids) > 1:
                 warnings.warn(f"Stars {sids} have same integer coordinates {key}; they may overlap on screen")
+
+        # Final consistency pass: recompute 'shared' flags from actual memberships
+        try:
+            graph.recompute_shared_flags()
+        except Exception:
+            # If method doesn't exist or fails, skip silently (backward-compat)
+            pass
 
         return graph

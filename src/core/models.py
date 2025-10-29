@@ -124,8 +124,38 @@ class Graph:
                     # also update star.links
                     self.stars[v].add_link(u, edge.distance, edge.blocked or default_blocked)
 
-    # Nota: métodos neighbors, toggle_edge_block y find_shared_stars
-    # eliminados por no tener usos en el repositorio actual.
+    def neighbors(self, node_id: int, include_blocked: bool = False) -> List[Edge]:
+        """Devuelve aristas salientes desde node_id, opcionalmente incluyendo bloqueadas."""
+        if node_id not in self.adjacency:
+            return []
+        result: List[Edge] = []
+        for v, e in self.adjacency[node_id].items():
+            if not include_blocked and e.blocked:
+                continue
+            result.append(e)
+        return result
+
+    def toggle_edge_block(self, u: int, v: int, blocked: Optional[bool] = None):
+        """Alterna o fija el estado 'blocked' en la arista u->v y su inversa si existe.
+
+        - Si blocked es None, invierte el estado actual (toggle).
+        - Si blocked es True/False, asigna explícitamente ese valor.
+        No crea aristas nuevas; solo actúa sobre las existentes.
+        """
+        if u in self.adjacency and v in self.adjacency[u]:
+            if blocked is None:
+                self.adjacency[u][v].blocked = not self.adjacency[u][v].blocked
+            else:
+                self.adjacency[u][v].blocked = bool(blocked)
+        if v in self.adjacency and u in self.adjacency[v]:
+            if blocked is None:
+                self.adjacency[v][u].blocked = not self.adjacency[v][u].blocked
+            else:
+                self.adjacency[v][u].blocked = bool(blocked)
+
+    def find_shared_stars(self) -> List[Star]:
+        """Devuelve estrellas que aparecen en más de una constelación (shared)."""
+        return [s for s in self.stars.values() if len(s.constellations) > 1 or s.shared]
 
     def hypergiant_counts(self) -> Dict[str, int]:
         counts = {}
@@ -160,4 +190,38 @@ class Graph:
             star.shared = len(consts) > 1
             if star.shared != prev_shared:
                 changed += 1
+        return changed
+
+    def toggle_edge_block(self, u: int, v: int, blocked: Optional[bool] = None) -> bool:
+        """Alterna o establece el estado 'blocked' para la arista (u,v) y su
+        par inverso (v,u). También sincroniza Star.links en ambos extremos.
+
+        Args:
+            u (int): nodo origen
+            v (int): nodo destino
+            blocked (Optional[bool]): si None, alterna; si True/False, fija.
+
+        Returns:
+            bool: True si se modificó alguna arista, False si no existía la arista.
+        """
+        changed = False
+        # Helper para aplicar cambio en adjacency y Star.links
+        def _apply(a: int, b: int) -> bool:
+            mod = False
+            if a in self.adjacency and b in self.adjacency[a]:
+                edge = self.adjacency[a][b]
+                new_val = (not edge.blocked) if blocked is None else bool(blocked)
+                if edge.blocked != new_val:
+                    edge.blocked = new_val
+                    mod = True
+                # sync Star.links
+                if a in self.stars:
+                    for l in self.stars[a].links:
+                        if l.to == b:
+                            l.blocked = edge.blocked
+                            break
+            return mod
+
+        changed = _apply(u, v) or changed
+        changed = _apply(v, u) or changed
         return changed

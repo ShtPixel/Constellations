@@ -6,7 +6,7 @@ MARGIN = 40
 # Colores básicos (RGB)
 BACKGROUND = (10, 10, 20)
 EDGE = (200, 200, 220)
-EDGE_BLOCKED = (140, 140, 160)
+EDGE_BLOCKED = (71, 12, 0)
 SHARED = (220, 40, 40)
 
 # Paleta de colores para constelaciones

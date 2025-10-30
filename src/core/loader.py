@@ -57,11 +57,9 @@ class Loader:
 
         if "constellations" not in data:
             raise KeyError("galaxies.json must contain 'constellations' array")
-
         graph = Graph()
         # temp index to collect stars and track occurrences
         occurrences = {}  # id -> list of (constellation_name, raw_star_dict)
-        raw_stars = {}
 
         for const in data["constellations"]:
             cname = const.get("name", "Unnamed")
@@ -108,7 +106,6 @@ class Loader:
                     "constellation": cname
                 }
                 # register
-                raw_stars[sid] = star_dict
                 occurrences.setdefault(sid, []).append((cname, star_dict))
 
         # Build Star objects and add to graph

@@ -124,38 +124,7 @@ class Graph:
                     # also update star.links
                     self.stars[v].add_link(u, edge.distance, edge.blocked or default_blocked)
 
-    def neighbors(self, node_id: int, include_blocked: bool = False) -> List[Edge]:
-        """Devuelve aristas salientes desde node_id, opcionalmente incluyendo bloqueadas."""
-        if node_id not in self.adjacency:
-            return []
-        result: List[Edge] = []
-        for v, e in self.adjacency[node_id].items():
-            if not include_blocked and e.blocked:
-                continue
-            result.append(e)
-        return result
-
-    def toggle_edge_block(self, u: int, v: int, blocked: Optional[bool] = None):
-        """Alterna o fija el estado 'blocked' en la arista u->v y su inversa si existe.
-
-        - Si blocked es None, invierte el estado actual (toggle).
-        - Si blocked es True/False, asigna explícitamente ese valor.
-        No crea aristas nuevas; solo actúa sobre las existentes.
-        """
-        if u in self.adjacency and v in self.adjacency[u]:
-            if blocked is None:
-                self.adjacency[u][v].blocked = not self.adjacency[u][v].blocked
-            else:
-                self.adjacency[u][v].blocked = bool(blocked)
-        if v in self.adjacency and u in self.adjacency[v]:
-            if blocked is None:
-                self.adjacency[v][u].blocked = not self.adjacency[v][u].blocked
-            else:
-                self.adjacency[v][u].blocked = bool(blocked)
-
-    def find_shared_stars(self) -> List[Star]:
-        """Devuelve estrellas que aparecen en más de una constelación (shared)."""
-        return [s for s in self.stars.values() if len(s.constellations) > 1 or s.shared]
+    # Removed unused helpers: neighbors(), find_shared_stars().
 
     def hypergiant_counts(self) -> Dict[str, int]:
         counts = {}

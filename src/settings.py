@@ -1,13 +1,15 @@
-WINDOW_WIDTH = 900
-WINDOW_HEIGHT = 700
+WINDOW_WIDTH = 1040
+WINDOW_HEIGHT = 840
 MIN_VIEWPORT = 200
-MARGIN = 40
+MARGIN = 0
 
 # Colores básicos (RGB)
 BACKGROUND = (10, 10, 20)
 EDGE = (200, 200, 220)
 EDGE_BLOCKED = (71, 12, 0)
 SHARED = (220, 40, 40)
+GRID_SPACING = 100
+
 
 # Paleta de colores para constelaciones
 # - Puedes definir colores por nombre en CONSTELLATION_COLORS

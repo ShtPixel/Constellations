@@ -6,6 +6,13 @@
         {
           "id": 1,
           "label": "Alpha1",
+          "radius": 0.4,
+          "timeToEat": 3,
+          "amountOfEnergy": 1,
+          "x": 25,
+          "y": 34,
+          "hypergiant": false,
+          "shared": false,
           "links": [
             {
               "to": 2,
@@ -22,14 +29,7 @@
               "distance": 101,
               "blocked": false  
             }
-          ],
-          "radius": 0.4,
-          "timeToEat": 3,
-          "amountOfEnergy": 1,
-          "x": 25,
-          "y": 34,
-          "hypergiant": false,
-          "shared": false
+          ]
         },
         {
           "id": 2,

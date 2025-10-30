@@ -15,22 +15,30 @@ except Exception:
 
 class GraphRenderer:
 	#Recibe el grafo (modelo construido por el loader) y parámetros de ventana y márgenes.
-	def __init__(self, graph, width: int = 800, height: int = 600, min_size: int = 200, margin: int = 40):
+	# pixel_coords=True: interpreta las coordenadas del JSON como píxeles de pantalla (origen arriba-izquierda).
+	# pixel_coords=False: ajusta y escala automáticamente para encajar todo el mundo dentro de la ventana.
+	def __init__(self, graph, width: int = 800, height: int = 600, min_size: int = 200, margin: int = 0, pixel_coords: bool = True):
 		self.graph = graph
 		self.width = max(width, min_size)
 		self.height = max(height, min_size)
 		self.margin = margin
+		self.pixel_coords = bool(pixel_coords)
 		# Use centralized color settings to avoid duplication
 		self.bg_color = getattr(app_settings, "BACKGROUND", (10, 10, 20))
 		self.edge_color = getattr(app_settings, "EDGE", (200, 200, 220))
 		self.edge_blocked_color = getattr(app_settings, "EDGE_BLOCKED", (140, 140, 160))
 		self.shared_color = getattr(app_settings, "SHARED", (220, 40, 40))
+		# Grid and labeling settings (with safe defaults if not in settings)
+		self.grid_color = getattr(app_settings, "GRID_COLOR", (35, 35, 50))
+		self.grid_spacing = int(getattr(app_settings, "GRID_SPACING", 50))
+		self.id_color = getattr(app_settings, "ID_COLOR", (235, 235, 235))
 		self.constellation_colors: Dict[str, Tuple[int, int, int]] = {}
 		self.selected_origin: int | None = None
 		self.selected_target: int | None = None
 		self.mouse_pos: Tuple[int, int] = (0, 0)
 		self.hover_edge: Tuple[int, int] | None = None
 		self.font = None
+		self.small_font = None
 		self.last_message: str | None = None
 		self._compute_palette()
 		self._compute_transform()
@@ -52,7 +60,13 @@ class GraphRenderer:
 		# Removed unused HSV conversion method
 
 	def _compute_transform(self):
-		# Map world (stars x,y) to screen coordinates
+		if self.pixel_coords:
+			# No scaling: JSON coordinates are in pixels already
+			self.scale = 1.0
+			self.offset_x = self.margin
+			self.offset_y = self.margin
+			return
+		# Map world (stars x,y) to screen coordinates (auto-fit)
 		xs = [s.x for s in self.graph.stars.values()] or [0]
 		ys = [s.y for s in self.graph.stars.values()] or [0]
 		min_x, max_x = min(xs), max(xs)
@@ -75,6 +89,9 @@ class GraphRenderer:
 
 	def draw(self, screen):
 		screen.fill(self.bg_color)
+
+		# Optional background grid (screen-space), to help spatial orientation
+		self._draw_grid(screen)
 
 		# Draw edges (unique undirected)
 		drawn: Set[Tuple[int, int]] = set()
@@ -103,9 +120,13 @@ class GraphRenderer:
 				x, y = self.world_to_screen(star.x, star.y)
 				r = max(2, int(2 + star.radius * 5))
 				pygame.draw.circle(screen, color, (x, y), r)
-				# highlight shared
-				if star.shared or len(star.constellations) > 1:
-					pygame.draw.circle(screen, self.shared_color, (x, y), r + 3, 2)
+
+		# Overlay: draw shared rings based ONLY on JSON flag 'shared'
+		for star in self.graph.stars.values():
+			if getattr(star, "shared", False):
+				x, y = self.world_to_screen(star.x, star.y)
+				r = max(2, int(2 + star.radius * 5))
+				pygame.draw.circle(screen, self.shared_color, (x, y), r + 3, 2)
 
 		# Draw selection highlights
 		if self.selected_origin is not None and self.selected_origin in self.graph.stars:
@@ -136,6 +157,9 @@ class GraphRenderer:
 				x2, y2 = self.world_to_screen(sv.x, sv.y)
 				pygame.draw.line(screen, (200, 120, 255), (x1, y1), (x2, y2), 3)
 
+		# Draw star ID labels on top of geometry (but under HUD)
+		self._draw_star_labels(screen)
+
 		# HUD: instructions and selection info
 		if self.font:
 			info_lines = [
@@ -151,6 +175,37 @@ class GraphRenderer:
 				info_lines.append(self.last_message)
 			self._draw_text_block(screen, info_lines, (10, 10))
 			self._draw_legend(screen, (10, 80))
+
+	def _draw_grid(self, screen):
+		"""Draw a simple screen-space grid inside the margin box."""
+		if self.grid_spacing <= 0:
+			return
+		x0, y0 = self.margin, self.margin
+		x1, y1 = self.width - self.margin, self.height - self.margin
+		# Vertical lines
+		x = x0
+		while x <= x1:
+			pygame.draw.line(screen, self.grid_color, (x, y0), (x, y1), 1)
+			x += self.grid_spacing
+		# Horizontal lines
+		y = y0
+		while y <= y1:
+			pygame.draw.line(screen, self.grid_color, (x0, y), (x1, y), 1)
+			y += self.grid_spacing
+
+	def _draw_star_labels(self, screen):
+		"""Draw star IDs near their positions for easier identification."""
+		if not self.font and not self.small_font:
+			return
+		label_font = self.small_font or self.font
+		for sid, star in self.graph.stars.items():
+			x, y = self.world_to_screen(star.x, star.y)
+			text = str(sid)
+			# Simple shadow for readability
+			img_shadow = label_font.render(text, True, (0, 0, 0))
+			screen.blit(img_shadow, (x + 1, y - 1))
+			img = label_font.render(text, True, self.id_color)
+			screen.blit(img, (x, y - 2))
 
 	def _draw_text_block(self, screen, lines: list[str], topleft: Tuple[int, int]):
 		x, y = topleft
@@ -222,6 +277,7 @@ class GraphRenderer:
 		screen = pygame.display.set_mode((self.width, self.height))
 		pygame.display.set_caption("Constellations Viewer")
 		self.font = pygame.font.SysFont(None, 18)
+		self.small_font = pygame.font.SysFont(None, 12)
 		clock = pygame.time.Clock()
 		running = True
 		while running:

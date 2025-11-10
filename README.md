@@ -31,3 +31,7 @@ falta:
     Mostrar progreso (%) del plan.
     Visualizar segmento actual en color distinto.
     Ajustar modelo de consumo (energía vs distancia más realista).
+
+realizar clanup de los archivos existentes ya que hay cosas redundantes o sin uso
+
+SOLID- FALTA APLICAR BIEN

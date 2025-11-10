@@ -25,3 +25,9 @@ proyecto_grafos_pygame/
 │     └─ colors.py
 └─ README.md
            
+Integré la simulación: ahora puedes generar un plan (G) y luego controlar la simulación con Space (play/pause), N (step), + / - (velocidad), y ver en el HUD energía, vida y pasto. El sonido de muerte se dispara automáticamente al morir el burro. Reporte (T) intacto. No hay errores de sintaxis en los archivos modificados.
+falta: 
+    Exportar log de simulación (tecla adicional).
+    Mostrar progreso (%) del plan.
+    Visualizar segmento actual en color distinto.
+    Ajustar modelo de consumo (energía vs distancia más realista).

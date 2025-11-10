@@ -12,14 +12,16 @@ from typing import Optional
 
 
 def run(path_burro: str = "data/burro.json", path_galaxies: str = "data/galaxies.json",
-		width: int = 900, height: int = 700):
+		width=None, height=None):
 	"""Carga datos y abre una ventana para visualizar el grafo.
 
 	Requiere pygame instalado. Si no está disponible, lanza RuntimeError con instrucciones.
 	"""
 	loader = Loader(path_burro=path_burro, path_galaxies=path_galaxies)
 	donkey, graph = loader.load()
-	renderer = GraphRenderer(graph, width=width, height=height)
+	ui_config = loader.load_ui_config(required=True)
+	# Renderer depende únicamente del ui_config JSON y recibe el burro para planificación
+	renderer = GraphRenderer(graph, width=width, height=height, ui_config=ui_config, donkey=donkey)
 	renderer.run()
 
 

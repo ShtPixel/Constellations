@@ -1,61 +1,114 @@
 from typing import Dict, Tuple, Set
 import math
 
-# Import application settings (colors, etc.)
-try:
-	from src import settings as app_settings
-except ModuleNotFoundError:
-	import settings as app_settings
-
 try:
 	import pygame
 except Exception:  
 	pygame = None
 
+try:
+	from src.core.planner import (
+		dijkstra,
+		reconstruct_path,
+		greedy_max_visits_enhanced,
+		energy_budget_from_donkey,
+	)
+except ModuleNotFoundError:
+	from core.planner import (
+		dijkstra,
+		reconstruct_path,
+		greedy_max_visits_enhanced,
+		energy_budget_from_donkey,
+	)
+
+try:
+	from src.core.reporter import build_route_report, save_route_report
+except ModuleNotFoundError:
+	from core.reporter import build_route_report, save_route_report
+
+try:
+	from src.core.simulator import Simulator
+except ModuleNotFoundError:
+	from core.simulator import Simulator
+
+try:
+	from src.sound.sound_manager import SoundManager
+except ModuleNotFoundError:
+	from sound.sound_manager import SoundManager
+
 
 class GraphRenderer:
-	#Recibe el grafo (modelo construido por el loader) y parámetros de ventana y márgenes.
-	# pixel_coords=True: interpreta las coordenadas del JSON como píxeles de pantalla (origen arriba-izquierda).
-	# pixel_coords=False: ajusta y escala automáticamente para encajar todo el mundo dentro de la ventana.
-	def __init__(self, graph, width: int = 800, height: int = 600, min_size: int = 200, margin: int = 0, pixel_coords: bool = True):
+
+	def __init__(self, graph, width=None, height=None, min_size=None, margin=None, pixel_coords: bool = True, ui_config=None, donkey=None):
 		self.graph = graph
-		self.width = max(width, min_size)
-		self.height = max(height, min_size)
-		self.margin = margin
+		self.donkey = donkey
+		# Require UI config (JSON) as the single source of truth
+		if not ui_config:
+			raise ValueError("Falta 'ui' en burro.json o no se pasó ui_config al renderer")
+		ui = ui_config or {}
+		win_cfg = ui.get("window", {})
+		if "width" not in win_cfg or "height" not in win_cfg:
+			raise ValueError("La configuración UI debe incluir window.width y window.height en burro.json")
+		cfg_w = win_cfg.get("width")
+		cfg_h = win_cfg.get("height")
+		cfg_min = win_cfg.get("minViewport", 0)
+		cfg_margin = win_cfg.get("margin", 0)
+		w = cfg_w if width is None else width
+		h = cfg_h if height is None else height
+		ms = cfg_min if min_size is None else min_size
+		mg = cfg_margin if margin is None else margin
+		self.width = max(int(w), int(ms))
+		self.height = max(int(h), int(ms))
+		self.margin = int(mg)
 		self.pixel_coords = bool(pixel_coords)
-		# Use centralized color settings to avoid duplication
-		self.bg_color = getattr(app_settings, "BACKGROUND", (10, 10, 20))
-		self.edge_color = getattr(app_settings, "EDGE", (200, 200, 220))
-		self.edge_blocked_color = getattr(app_settings, "EDGE_BLOCKED", (140, 140, 160))
-		self.shared_color = getattr(app_settings, "SHARED", (220, 40, 40))
-		# Grid and labeling settings (with safe defaults if not in settings)
-		self.grid_color = getattr(app_settings, "GRID_COLOR", (35, 35, 50))
-		self.grid_spacing = int(getattr(app_settings, "GRID_SPACING", 50))
-		self.id_color = getattr(app_settings, "ID_COLOR", (235, 235, 235))
-		self.constellation_colors: Dict[str, Tuple[int, int, int]] = {}
-		self.selected_origin: int | None = None
-		self.selected_target: int | None = None
-		self.mouse_pos: Tuple[int, int] = (0, 0)
-		self.hover_edge: Tuple[int, int] | None = None
+		colors_cfg = ui.get("colors", {})
+		# Solo JSON: si faltan claves críticas, error explícito
+		required_colors = ["BACKGROUND", "EDGE", "EDGE_BLOCKED", "SHARED", "GRID_COLOR", "ID_COLOR"]
+		missing = [k for k in required_colors if k not in colors_cfg]
+		if missing:
+			raise ValueError(f"Faltan colores en ui.colors: {missing}")
+		self.bg_color = tuple(colors_cfg["BACKGROUND"])  # type: ignore
+		self.edge_color = tuple(colors_cfg["EDGE"])  # type: ignore
+		self.edge_blocked_color = tuple(colors_cfg["EDGE_BLOCKED"])  # type: ignore
+		self.shared_color = tuple(colors_cfg["SHARED"])  # type: ignore
+		self.grid_color = tuple(colors_cfg["GRID_COLOR"])  # type: ignore
+		self.id_color = tuple(colors_cfg["ID_COLOR"])  # type: ignore
+		grid_cfg = ui.get("grid", {})
+		if "spacing" not in grid_cfg:
+			raise ValueError("Falta ui.grid.spacing en burro.json")
+		self.grid_spacing = int(grid_cfg.get("spacing"))
+		self.external_palette = ui.get("PALETTE")
+		self.constellation_colors = {}
+		self.selected_origin = None
+		self.mouse_pos = (0, 0)
+		self.hover_edge = None
+		self.show_path_to_hover = False
+		self.dists = {}
+		self.parents = {}
+		self.planned_route = []
 		self.font = None
 		self.small_font = None
-		self.last_message: str | None = None
+		self.last_message = None
+		# Simulation fields
+		self.simulator = None
+		self.sim_running = False
+		self.sim_speed = 1.0  # steps per second
+		self._last_step_time = 0.0
+		self._sound = SoundManager()
 		self._compute_palette()
 		self._compute_transform()
 
 	def _compute_palette(self):
-		# Palette from settings only: use name-based mapping first, then cycle PALETTE.
+		# Use palette strictly from JSON (ui_config). If missing, require explicit mapping
 		names = list(self.graph.constellations.keys())
-		by_name = getattr(app_settings, "CONSTELLATION_COLORS", {}) or {}
-		palette = getattr(app_settings, "PALETTE", [
-			(255, 99, 132), (54, 162, 235), (255, 206, 86), (75, 192, 192),
-			(153, 102, 255), (255, 159, 64), (99, 255, 132), (132, 99, 255), (255, 99, 255)
-		])
+		palette = self.external_palette or []
+		if not palette:
+			# if no palette is provided, assign a neutral gray to all
+			for name in names:
+				self.constellation_colors[name] = (180, 180, 180)
+			return
 		for i, name in enumerate(names):
-			if name in by_name:
-				self.constellation_colors[name] = by_name[name]
-			else:
-				self.constellation_colors[name] = palette[i % len(palette)]
+			self.constellation_colors[name] = tuple(palette[i % len(palette)])  # type: ignore
 
 		# Removed unused HSV conversion method
 
@@ -128,25 +181,26 @@ class GraphRenderer:
 				r = max(2, int(2 + star.radius * 5))
 				pygame.draw.circle(screen, self.shared_color, (x, y), r + 3, 2)
 
-		# Draw selection highlights
+		# Draw origin highlight
 		if self.selected_origin is not None and self.selected_origin in self.graph.stars:
 			so = self.graph.stars[self.selected_origin]
 			x, y = self.world_to_screen(so.x, so.y)
-			pygame.draw.circle(screen, (255, 220, 0), (x, y), 10, 2)  # amarillo
-		if self.selected_target is not None and self.selected_target in self.graph.stars:
-			st = self.graph.stars[self.selected_target]
-			x, y = self.world_to_screen(st.x, st.y)
-			pygame.draw.circle(screen, (0, 220, 255), (x, y), 10, 2)  # cian
+			pygame.draw.circle(screen, (255, 220, 0), (x, y), 10, 2)  # amarillo origen
 
-		# If both selected, highlight edge if exists
-		if self.selected_origin is not None and self.selected_target is not None:
-			u, v = self.selected_origin, self.selected_target
-			if u in self.graph.adjacency and v in self.graph.adjacency[u]:
-				su = self.graph.stars[u]
-				sv = self.graph.stars[v]
-				x1, y1 = self.world_to_screen(su.x, su.y)
-				x2, y2 = self.world_to_screen(sv.x, sv.y)
-				pygame.draw.line(screen, (255, 200, 0), (x1, y1), (x2, y2), 4)
+		# Show path to hovered star if enabled and computed
+		if self.show_path_to_hover and self.selected_origin is not None:
+			hover_sid = self._star_at_pixel(*self.mouse_pos, threshold=12)
+			if hover_sid is not None and hover_sid in self.parents:
+				path = reconstruct_path(self.parents, hover_sid)
+				for i in range(len(path) - 1):
+					a = path[i]
+					b = path[i + 1]
+					if a in self.graph.stars and b in self.graph.stars:
+						sa = self.graph.stars[a]
+						sb = self.graph.stars[b]
+						x1, y1 = self.world_to_screen(sa.x, sa.y)
+						x2, y2 = self.world_to_screen(sb.x, sb.y)
+						pygame.draw.line(screen, (0, 255, 0), (x1, y1), (x2, y2), 4)
 		elif self.hover_edge is not None:
 			# Highlight hovered edge when no full selection
 			u, v = self.hover_edge
@@ -160,21 +214,74 @@ class GraphRenderer:
 		# Draw star ID labels on top of geometry (but under HUD)
 		self._draw_star_labels(screen)
 
-		# HUD: instructions and selection info
+		# Draw planned route if exists (thick cyan segments + numbering)
+		if self.planned_route and len(self.planned_route) > 1:
+			for i in range(len(self.planned_route) - 1):
+				a = self.planned_route[i]
+				b = self.planned_route[i + 1]
+				if a in self.graph.stars and b in self.graph.stars:
+					sa = self.graph.stars[a]
+					sb = self.graph.stars[b]
+					x1, y1 = self.world_to_screen(sa.x, sa.y)
+					x2, y2 = self.world_to_screen(sb.x, sb.y)
+					pygame.draw.line(screen, (0, 200, 255), (x1, y1), (x2, y2), 3)
+			# Optionally draw step numbers
+			if self.small_font:
+				for idx, sid in enumerate(self.planned_route):
+					st = self.graph.stars.get(sid)
+					if not st:
+						continue
+					x, y = self.world_to_screen(st.x, st.y)
+					img = self.small_font.render(str(idx), True, (0, 220, 255))
+					screen.blit(img, (x + 6, y + 6))
+
+		# HUD: instructions and selection info (moved to bottom-right)
 		if self.font:
-			info_lines = [
-				"Click: seleccionar origen/destino",
-				"B: bloquear/habilitar arista (entre selección o arista más cercana)",
-				"C: limpiar selección | ESC: salir",
-			]
+			info_lines = []
+			# Dynamic status first
 			if self.selected_origin is not None:
-				info_lines.append(f"Origen: {self.selected_origin}")
-			if self.selected_target is not None:
-				info_lines.append(f"Destino: {self.selected_target}")
+				line_origin = f"Origen {self.selected_origin}"
+				if self.planned_route:
+					line_origin += f" | Plan {len(self.planned_route)}"
+				info_lines.append(line_origin)
+			# Simulation status
+			if self.simulator:
+				st = self.simulator.state
+				status = "RUN" if self.sim_running and not st.finished else ("DONE" if st.finished else "PAUSE")
+				info_lines.append(f"Sim {status} E={st.energy_pct:.1f}% L={st.life_remaining:.1f}kg P={st.pasto_kg:.1f}")
+				hover_sid = self._star_at_pixel(*self.mouse_pos, threshold=12)
+				if hover_sid is not None:
+					if hover_sid in self.dists:
+						info_lines.append(f"Hover {hover_sid} d={self.dists[hover_sid]:.1f}")
+					else:
+						info_lines.append(f"Hover {hover_sid} sin ruta")
+			info_lines.append("RutaHover:" + ("ON" if self.show_path_to_hover else "OFF"))
+			info_lines.append("Controles: Click=Origen R=Djk P=Ruta G=Plan T=Reporte B=Bloq C=Clear Space=Play N=Step +/-=Vel ESC")
 			if self.last_message:
 				info_lines.append(self.last_message)
-			self._draw_text_block(screen, info_lines, (10, 10))
-			self._draw_legend(screen, (10, 80))
+			# Legend appended after a separator line if fits
+			legend_lines = []
+			for name, color in self.constellation_colors.items():
+				legend_lines.append(f"{name}")
+			# Compute block size
+			all_lines = info_lines + ["-"] + legend_lines if legend_lines else info_lines
+			# Render bottom-right
+			pad = 8
+			rendered = [self.font.render(line, True, (230, 230, 230)) for line in all_lines]
+			height_block = sum(r.get_height()+2 for r in rendered)
+			width_block = max(r.get_width() for r in rendered) if rendered else 0
+			bx = self.width - width_block - pad - 4
+			by = self.height - height_block - pad - 4
+			# Background panel
+			pygame.draw.rect(screen, (0, 0, 0, 160), (bx-4, by-4, width_block + 8, height_block + 8))
+			y = by
+			for line_surf, text in zip(rendered, all_lines):
+				if text == "-":
+					pygame.draw.line(screen, (90, 90, 90), (bx, y), (bx + width_block, y), 1)
+					y += 4
+					continue
+				screen.blit(line_surf, (bx, y))
+				y += line_surf.get_height() + 2
 
 	def _draw_grid(self, screen):
 		"""Draw a simple screen-space grid inside the margin box."""
@@ -290,46 +397,152 @@ class GraphRenderer:
 					self.mouse_pos = event.pos
 					self.hover_edge = self._nearest_edge(*self.mouse_pos)
 				elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-					# Left click: select origin then target; click vacío limpia selección
+					# Selección de origen; click en vacío limpia
 					sid = self._star_at_pixel(*event.pos)
 					if sid is not None:
-						if self.selected_origin is None or (self.selected_origin is not None and self.selected_target is not None):
-							# start new selection
-							self.selected_origin = sid
-							self.selected_target = None
-						elif self.selected_origin is not None and sid != self.selected_origin:
-							self.selected_target = sid
+						self.selected_origin = sid
+						self.dists = {}
+						self.parents = {}
+						self.planned_route = []
+						self.simulator = None
+						self.sim_running = False
+						self.last_message = f"Origen establecido: {sid}"
 					else:
-						# Click en vacío: limpiar selección
 						self.selected_origin = None
-						self.selected_target = None
-						self.last_message = "Selección limpiada"
+						self.dists = {}
+						self.parents = {}
+						self.planned_route = []
+						self.simulator = None
+						self.sim_running = False
+						self.last_message = "Origen limpiado"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_c:
-					# Clear selection
+					# Limpiar origen y cálculos
 					self.selected_origin = None
-					self.selected_target = None
+					self.dists = {}
+					self.parents = {}
+					self.planned_route = []
+					self.simulator = None
+					self.sim_running = False
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_b:
 					# Toggle block on selected edge or nearest edge to mouse
 					try:
 						acted = False
-						if self.selected_origin is not None and self.selected_target is not None:
-							u, v = self.selected_origin, self.selected_target
-							if u in self.graph.adjacency and v in self.graph.adjacency[u]:
-								self.graph.toggle_edge_block(u, v)
-								acted = True
-							elif v in self.graph.adjacency and u in self.graph.adjacency[v]:
-								self.graph.toggle_edge_block(v, u)
-								acted = True
-						if not acted:
-							px, py = self.mouse_pos
-							edge = self._nearest_edge(px, py)
-							if edge:
-								u, v = edge
-								self.graph.toggle_edge_block(u, v)
-								acted = True
+						px, py = self.mouse_pos
+						edge = self._nearest_edge(px, py)
+						if edge:
+							u, v = edge
+							self.graph.toggle_edge_block(u, v)
+							acted = True
 						self.last_message = "Arista bloqueada/habilitada" if acted else "No se encontró arista cercana"
 					except Exception as e:
 						self.last_message = f"Error al bloquear: {e}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+					# Recalcular Dijkstra desde el origen
+					if self.selected_origin is None:
+						self.last_message = "Define un origen antes de R"
+					else:
+						try:
+							self.dists, self.parents = dijkstra(self.graph, self.selected_origin)
+							self.last_message = f"Dijkstra listo ({len(self.dists)} alcanzables)"
+						except Exception as e:
+							self.last_message = f"Error Dijkstra: {e}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+					self.show_path_to_hover = not self.show_path_to_hover
+					self.last_message = "Ruta hover activada" if self.show_path_to_hover else "Ruta hover desactivada"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_g:
+					# Plan estático mejorado: presupuesto por burro + costo de visita por estrella
+					if self.selected_origin is None:
+						self.last_message = "Selecciona origen antes de G"
+					else:
+						try:
+							if not self.donkey:
+								self.last_message = "Burro no disponible para plan"
+							else:
+								route, used = greedy_max_visits_enhanced(self.graph, self.selected_origin, self.donkey)
+								self.planned_route = route
+								# Prepare simulator for the new plan
+								try:
+									self.simulator = Simulator(self.graph, self.donkey, self.planned_route)
+									self.sim_running = False
+									self._last_step_time = 0.0
+								except Exception:
+									self.simulator = None
+									self.sim_running = False
+								budget = energy_budget_from_donkey(self.donkey)
+								self.last_message = f"Plan listo: {len(route)} nodos, costo≃{used:.1f} / presupuesto {budget:.1f}"
+						except Exception as e:
+							self.last_message = f"Error plan: {e}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_t:
+					# Exportar reporte de la ruta planeada
+					if not self.planned_route:
+						self.last_message = "No hay plan para exportar"
+					else:
+						try:
+							budget = energy_budget_from_donkey(self.donkey) if self.donkey else 0.0
+							report = build_route_report(self.graph, self.donkey, self.planned_route, total_cost=budget)
+							save_route_report("plan_report.json", report)
+							self.last_message = "Reporte exportado: plan_report.json"
+						except Exception as e:
+							self.last_message = f"Error exportando: {e}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+					# Toggle play/pause simulation
+					if not self.planned_route:
+						self.last_message = "Calcula un plan (G) antes de simular"
+					else:
+						if not self.simulator:
+							try:
+								self.simulator = Simulator(self.graph, self.donkey, self.planned_route)
+								self._last_step_time = 0.0
+								self.sim_running = True
+								self.last_message = "Simulación iniciada"
+							except Exception as e:
+								self.last_message = f"No se pudo iniciar simulación: {e}"
+						else:
+							if self.simulator.state.finished:
+								self.last_message = "Simulación ya finalizada"
+							else:
+								self.sim_running = not self.sim_running
+								self._last_step_time = 0.0
+								self.last_message = "Simulación reanudada" if self.sim_running else "Simulación en pausa"
+				elif event.type == pygame.KEYDOWN and (event.key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS)):
+					# Increase sim speed
+					self.sim_speed = min(10.0, self.sim_speed * 1.5)
+					self.last_message = f"Velocidad x{self.sim_speed:.2f}"
+				elif event.type == pygame.KEYDOWN and (event.key in (pygame.K_MINUS, pygame.K_KP_MINUS)):
+					# Decrease sim speed
+					self.sim_speed = max(0.1, self.sim_speed / 1.5)
+					self.last_message = f"Velocidad x{self.sim_speed:.2f}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
+					# Single step
+					if not self.simulator:
+						if not self.planned_route:
+							self.last_message = "Sin plan (G) para simular"
+						else:
+							try:
+								self.simulator = Simulator(self.graph, self.donkey, self.planned_route)
+							except Exception as e:
+								self.last_message = f"No se pudo preparar simulación: {e}"
+					if self.simulator and not self.simulator.state.finished:
+						st = self.simulator.step()
+						self.last_message = f"Tick {st.tick} en {st.current_star} E={st.energy_pct:.1f}% L={st.life_remaining:.1f}kg"
+						if st.dead:
+							self._sound.play_death()
+							self.last_message += " | MUERTE"
+
+			# Auto-stepping when running
+			now_ms = pygame.time.get_ticks()
+			if self.sim_running and self.simulator and not self.simulator.state.finished:
+				interval = 1000.0 / max(0.1, self.sim_speed)
+				if (now_ms - self._last_step_time) >= interval:
+					st = self.simulator.step()
+					self._last_step_time = now_ms
+					if st.dead:
+						self._sound.play_death()
+						self.sim_running = False
+						self.last_message = "El burro ha muerto"
+					elif st.finished:
+						self.sim_running = False
+						self.last_message = "Simulación finalizada"
 
 			self.draw(screen)
 			pygame.display.flip()

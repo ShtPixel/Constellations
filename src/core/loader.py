@@ -4,6 +4,8 @@ import os
 from typing import Tuple, Dict, Any
 import warnings
 
+# No settings module fallback: UI config must come from burro.json
+
 try:
     from src.core.models import Donkey, Graph, Star
 except ModuleNotFoundError:
@@ -27,6 +29,84 @@ class Loader:
         donkey = self._load_burro()
         graph = self._load_galaxies()
         return donkey, graph
+
+    def load_ui_config(self, required: bool = True) -> Dict[str, Any]:
+        """Carga configuración de interfaz desde burro.json (clave 'ui').
+
+        Estructura esperada:
+        {
+          "ui": {
+             "window": {"width": int, "height": int, "minViewport": int, "margin": int},
+             "grid": {"spacing": int},
+             "colors": {
+                 "background": [r,g,b],
+                 "edge": [r,g,b],
+                 "edgeBlocked": [r,g,b],
+                 "shared": [r,g,b],
+                 "grid": [r,g,b],
+                 "id": [r,g,b]
+             },
+             "palette": [[r,g,b], ...]
+          }
+        }
+        Devuelve un dict fusionado con valores por defecto si faltan.
+        """
+        if not os.path.exists(self.path_burro):
+            if required:
+                raise FileNotFoundError(f"burro.json not found at {self.path_burro}")
+            return {}
+        try:
+            with open(self.path_burro, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            if required:
+                raise e
+            return {}
+        ui = data.get("ui", {}) or {}
+        if required and not ui:
+            raise ValueError("Falta la sección 'ui' en burro.json")
+        window = ui.get("window", {}) or {}
+        grid = ui.get("grid", {}) or {}
+        colors = ui.get("colors", {}) or {}
+        palette = ui.get("palette", []) or []
+        def _col(name, default):
+            c = colors.get(name, default)
+            return tuple(c) if isinstance(c, (list, tuple)) and len(c) >= 3 else default
+        # Validate required keys if strict
+        if required:
+            missing = []
+            for k in ("width", "height"):
+                if k not in window:
+                    missing.append(f"window.{k}")
+            if "spacing" not in grid:
+                missing.append("grid.spacing")
+            for k in ("background", "edge", "edgeBlocked", "shared", "grid", "id"):
+                if k not in colors:
+                    missing.append(f"colors.{k}")
+            if missing:
+                raise ValueError("Faltan claves en ui: " + ", ".join(missing))
+
+        cfg = {
+            "window": {
+                "width": int(window.get("width")),
+                "height": int(window.get("height")),
+                "minViewport": int(window.get("minViewport", 0)),
+                "margin": int(window.get("margin", 0))
+            },
+            "grid": {
+                "spacing": int(grid.get("spacing"))
+            },
+            "colors": {
+                "BACKGROUND": _col("background", (0, 0, 0)),
+                "EDGE": _col("edge", (255, 255, 255)),
+                "EDGE_BLOCKED": _col("edgeBlocked", (128, 128, 128)),
+                "SHARED": _col("shared", (255, 0, 0)),
+                "GRID_COLOR": _col("grid", (50, 50, 50)),
+                "ID_COLOR": _col("id", (255, 255, 255)),
+            },
+            "PALETTE": [tuple(p) for p in palette if isinstance(p, (list, tuple)) and len(p) >= 3]
+        }
+        return cfg
 
     def _load_burro(self) -> Donkey:
         if not os.path.exists(self.path_burro):
@@ -134,17 +214,27 @@ class Loader:
             for cname, sd in items:
                 graph.add_star(star, constellation_name=cname)
 
-        # Now add edges from the normalized links
+        # Now add edges from ALL occurrences (merge links across constellations)
         for sid, items in occurrences.items():
-            # links defined for this star (take them from the first occurrence available)
-            star_info = items[0][1]
-            for l in star_info["links"]:
-                to = int(l["to"])
-                dist = float(l["distance"])
-                blocked = bool(l.get("blocked", False))
+            # Merge per-target by taking minimal distance and OR of 'blocked'
+            merged: Dict[int, Dict[str, float | bool]] = {}
+            for _cname, star_info in items:
+                for l in star_info["links"]:
+                    to = int(l["to"])
+                    if to == int(sid):
+                        continue  # skip self-loops defensively
+                    dist = float(l["distance"])
+                    blocked = bool(l.get("blocked", False))
+                    if to not in merged:
+                        merged[to] = {"distance": dist, "blocked": blocked}
+                    else:
+                        merged[to]["distance"] = min(float(merged[to]["distance"]), dist)
+                        merged[to]["blocked"] = bool(merged[to]["blocked"]) or blocked
+
+            for to, meta in merged.items():
                 if to not in graph.stars:
                     raise KeyError(f"Star {sid} has link to missing star {to}")
-                graph.add_edge(sid, to, dist, blocked=blocked)
+                graph.add_edge(int(sid), to, float(meta["distance"]), blocked=bool(meta["blocked"]))
 
         # Ensure bidirectionality
         graph.ensure_bidirectional(default_blocked=False)

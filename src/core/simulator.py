@@ -64,6 +64,17 @@ class Simulator:
 		# Pares (src,dst) que representan hipersaltos (warp) sin costo de distancia
 		self.warp_pairs: set[tuple[int,int]] = set()
 
+	def _mark_death(self, reason: str, star_id: Optional[int] = None, extra: Optional[Dict] = None):
+		"""Marca muerte del burro y cierra la simulación con logging."""
+		if self.state.dead:
+			return
+		self.state.dead = True
+		self.state.finished = True
+		info = {"reason": reason}
+		if extra:
+			info.update(extra)
+		self._log_event("death", star_id if star_id is not None else self.state.current_star, extra=info)
+
 	def _apply_hypergiant(self, star_id: int):
 		# En modo 1, las hipergigantes son normales: no recargan, no duplican pasto
 		if self.pure_movement_only:
@@ -146,6 +157,14 @@ class Simulator:
 			self.donkey.update_health_by_energy()
 		except Exception:
 			pass
+		# Si la salud pasó a Muerto por efectos, finalizar inmediatamente
+		try:
+			if str(getattr(self.donkey, 'salud', '')).lower().startswith('muerto'):
+				# Registrar visita parcial y marcar muerte por salud
+				self._mark_death("health", star_id=star_id)
+				return
+		except Exception:
+			pass
 		# Hipergigante
 		self._apply_hypergiant(star_id)
 		# Energía neta de la visita
@@ -221,11 +240,9 @@ class Simulator:
 			self._visit_star(dst)
 			self._visited.add(dst)
 		self.state.tick += 1
-		# Check death conditions (sólo por vida en este proyecto)
-		if self.state.life_remaining <= 0:
-			self.state.dead = True
-			self.state.finished = True
-			self._log_event("death", dst)
+		# Check death conditions (vida agotada o salud Muerto)
+		if self.state.life_remaining <= 0 or str(getattr(self.donkey, 'salud', '')).lower().startswith('muerto'):
+			self._mark_death("life" if self.state.life_remaining <= 0 else "health", star_id=dst)
 		else:
 			self._log_event("visit", dst, extra={"distance": distance})
 		return self.state

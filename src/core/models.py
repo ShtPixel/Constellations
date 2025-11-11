@@ -22,6 +22,13 @@ class Star:
     shared: bool = False
     constellations: List[str] = field(default_factory=list)
     links: List[Link] = field(default_factory=list)
+    # Nuevos campos para fase avanzada (edición por científico)
+    # life_delta: ganancia o pérdida de años luz al investigar esta estrella
+    life_delta: float = 0.0
+    # health_modifier: posible cambio textual del estado de salud ("Excelente", "Regular", "Mala", etc.)
+    health_modifier: Optional[str] = None
+    # energy_bonus_pct: porcentaje extra de energía recuperada al comer aquí (ej. 0.1 = +10%)
+    energy_bonus_pct: float = 0.0
 
     def add_link(self, to: int, distance: float, blocked: bool = False):
         # avoid duplicate exact link (same to and distance)
@@ -66,6 +73,14 @@ class Donkey:
             "Muerto": 0.0
         }
         return mapping.get(self.salud, 2.0)
+
+    def apply_health_modifier(self, modifier: Optional[str]):
+        """Aplica cambio de salud si el modificador es válido."""
+        if not modifier:
+            return
+        valid = {"Excelente", "Regular", "Mala", "Moribundo", "Muerto"}
+        if modifier in valid:
+            self.salud = modifier
 
 @dataclass
 class Edge:

@@ -230,3 +230,66 @@ def greedy_max_visits_enhanced(graph: Graph, source: int, donkey: Donkey, includ
         current = best_node
         remaining.discard(best_node)
     return route, used
+
+
+def greedy_max_visits_pure(graph: Graph, source: int, donkey: Donkey, include_blocked: bool = False) -> Tuple[List[int], float]:
+    """Planner Fase 2 PURO (requisito 2):
+
+    Calcula la ruta que permite conocer la mayor cantidad de estrellas usando SOLO
+    los valores iniciales del burro, sin mutar su energía, pasto o salud durante el
+    proceso de planificación y sin aplicar efectos de hipergigantes.
+
+    Modelo:
+      - Presupuesto base = energia_pct + pasto_kg * gain_per_kg (capped por vida restante)
+      - Costo de mover entre nodos = distancia camino más corto (Dijkstra)
+      - Costo de visita estática estimada = estimate_static_visit_cost(star, donkey)
+      - No se recarga energía ni duplica pasto en hipergigantes (se ignoran efectos dinámicos).
+      - Una estrella solo se considera una vez (nodo objetivo); se agregan intermedios del path sin penalización adicional
+        excepto el costo de movimiento.
+
+    Devuelve: (ruta, costo_total_usado)
+    """
+    if source not in graph.stars:
+        raise ValueError("source not in graph")
+    # Presupuesto puro
+    budget = energy_budget_from_donkey(donkey)
+    if budget <= 0:
+        return [source], 0.0
+    visited: set[int] = {source}
+    route: List[int] = [source]
+    used = 0.0
+    current = source
+    remaining: set[int] = set(graph.stars.keys()) - visited
+    while remaining:
+        dist, parent = dijkstra(graph, current, include_blocked=include_blocked)
+        best_node = None
+        best_total = INF
+        for v in list(remaining):
+            move_cost = dist.get(v, INF)
+            if move_cost is INF:
+                continue
+            visit_cost = estimate_static_visit_cost(graph.stars[v], donkey)
+            total_cost = move_cost + visit_cost
+            if total_cost < best_total and used + total_cost <= budget:
+                best_total = total_cost
+                best_node = v
+        if best_node is None:
+            break
+        # aplicar costo de movimiento
+        move_cost = dist[best_node]
+        used += move_cost
+        path = reconstruct_path(parent, best_node)
+        if path and path[0] == current:
+            for node in path[1:]:
+                if node not in visited:
+                    visited.add(node)
+                route.append(node)
+        else:
+            route.append(best_node)
+            visited.add(best_node)
+        # aplicar costo estático estimado de visita (sin mutaciones nuevas)
+        visit_cost = estimate_static_visit_cost(graph.stars[best_node], donkey)
+        used += visit_cost
+        current = best_node
+        remaining.discard(best_node)
+    return route, used

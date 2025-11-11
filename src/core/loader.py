@@ -182,6 +182,10 @@ class Loader:
                     "investigationEnergyCost": float(s.get("investigationEnergyCost", s.get("investigation_energy_cost", 0.0))),
                     "hypergiant": bool(s.get("hypergiant", False)),
                     "shared": bool(s.get("shared", False)),
+                    # Campos opcionales avanzados
+                    "lifeDelta": float(s.get("lifeDelta", 0.0)),
+                    "healthModifier": s.get("healthModifier"),
+                    "energyBonusPct": float(s.get("energyBonusPct", 0.0)),
                     "links": normalized_links,
                     "constellation": cname
                 }
@@ -208,7 +212,10 @@ class Loader:
                 amount_of_energy=base["amountOfEnergy"],
                 investigation_energy_cost=base["investigationEnergyCost"],
                 hypergiant=base["hypergiant"],
-                shared=computed_shared
+                shared=computed_shared,
+                life_delta=float(base.get("lifeDelta", 0.0)),
+                health_modifier=base.get("healthModifier"),
+                energy_bonus_pct=float(base.get("energyBonusPct", 0.0)),
             )
             # add constellation names y registra en cada constelación usando Graph
             for cname, sd in items:

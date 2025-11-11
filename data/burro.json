@@ -3,10 +3,10 @@
   "estadoSalud": "Excelente",
   "pasto": 300,
   "number": 123,
-  "startAge": 12,
-  "deathAge": 3567,
+  "startAge": 100,
+  "deathAge": 400,
   "ui": {
-    "window": {"width": 700, "height": 600, "minViewport": 200, "margin": 0},
+    "window": {"width": 900, "height": 600, "minViewport": 200, "margin": 0},
     "grid": {"spacing": 100},
     "colors": {
       "background": [10, 10, 20],

@@ -21,7 +21,15 @@ def run(path_burro: str = "data/burro.json", path_galaxies: str = "data/galaxies
 	donkey, graph = loader.load()
 	ui_config = loader.load_ui_config(required=True)
 	# Renderer depende únicamente del ui_config JSON y recibe el burro para planificación
-	renderer = GraphRenderer(graph, width=width, height=height, ui_config=ui_config, donkey=donkey)
+	# Requerimiento 1: usar por defecto coordenadas escaladas (>=200um)
+	renderer = GraphRenderer(
+		graph,
+		width=width,
+		height=height,
+		ui_config=ui_config,
+		donkey=donkey,
+		pixel_coords=False,
+	)
 	renderer.run()
 
 

@@ -44,13 +44,14 @@ class Simulator:
 	`TypeError: Simulator() takes no arguments`. This merged version restores
 	proper initialization and functionality.
 	"""
-	def __init__(self, graph: Graph, donkey: Donkey, route: List[int]):
+	def __init__(self, graph: Graph, donkey: Donkey, route: List[int], *, pure_movement_only: bool = False):
 		if not route:
 			raise ValueError("Route must contain at least one star id")
 		self.graph = graph
 		self.donkey = donkey  # reference (planner may mutate donkey during planning)
 		self.route = route
 		self.index = 0  # índice de posición dentro de la ruta
+		self.pure_movement_only = bool(pure_movement_only)
 		self._visited: set[int] = set()
 		self.state = SimulationState(
 			current_star=route[0],
@@ -60,8 +61,13 @@ class Simulator:
 			stars_log=[],
 		)
 		self.log: List[Dict] = []
+		# Pares (src,dst) que representan hipersaltos (warp) sin costo de distancia
+		self.warp_pairs: set[tuple[int,int]] = set()
 
 	def _apply_hypergiant(self, star_id: int):
+		# En modo 1, las hipergigantes son normales: no recargan, no duplican pasto
+		if self.pure_movement_only:
+			return
 		star = self.graph.stars.get(star_id)
 		if star and star.hypergiant:
 			# Configurable recharge and pasto multiplier
@@ -72,13 +78,17 @@ class Simulator:
 			self.state.pasto_kg *= max(1.0, pasto_mult)
 
 	def _consume_movement(self, distance: float):
-		# Movement cost factor can depend on health and be configurable
-		cfg = getattr(self.donkey, 'sim_config', None) or {}
-		factors = cfg.get('movementCostFactorByHealth') or {}
-		try:
-			factor_salud = float(factors.get(self.donkey.salud, 1.0))
-		except Exception:
-			factor_salud = 1.0
+		# En modo 1, solo se descuenta vida; no se toca energía
+		if self.pure_movement_only:
+			self.state.life_remaining = max(0.0, self.state.life_remaining - distance)
+			return
+		factor_salud = {
+			"Excelente": 0.6,
+			"Regular": 0.8,
+			"Mala": 1.0,
+			"Moribundo": 1.3,
+			"Muerto": 0.0,
+		}.get(self.donkey.salud, 1.0)
 		self.state.life_remaining = max(0.0, self.state.life_remaining - distance)
 		self.state.energy_pct = max(0.0, self.state.energy_pct - distance * factor_salud)
 		# actualizar salud según cuartiles de energía
@@ -89,6 +99,9 @@ class Simulator:
 			pass
 
 	def _visit_star(self, star_id: int):
+		# En modo 1 no hay comer/investigar/enfermedades ni cambios de energía/vida/salud
+		if self.pure_movement_only:
+			return
 		star = self.graph.stars.get(star_id)
 		if not star:
 			return
@@ -98,12 +111,9 @@ class Simulator:
 		before_salud = self.donkey.salud
 		# Tiempo total de la sesión en la estrella (heurística)
 		session_time = max(0.5, float(getattr(star, 'time_to_eat', 1.0)) * 2.0)
-		# División comer/investigar parametrizable
-		cfg = getattr(self.donkey, 'sim_config', None) or {}
-		threshold = float(cfg.get('eatEnergyThresholdPct', 50.0))
-		max_eat_frac = float(cfg.get('maxEatPortionFraction', 0.5))
-		portion_eat = session_time * max(0.0, min(1.0, max_eat_frac)) if self.state.energy_pct < threshold else 0.0
-		portion_invest = max(0.0, session_time - portion_eat)
+		# División comer/investigar (come si energía < 60%)
+		portion_eat = session_time * 0.5 if self.state.energy_pct < 60.0 else 0.0
+		portion_invest = session_time - portion_eat
 		kg_possible = portion_eat / max(0.1, star.time_to_eat)  # kg que puede comer
 		kg_eaten = min(self.state.pasto_kg, kg_possible)
 		gain_per_kg = self.donkey.energy_gain_per_kg()
@@ -112,14 +122,22 @@ class Simulator:
 		energy_gain = kg_eaten * gain_per_kg
 		# Consumo de pasto
 		self.state.pasto_kg = max(0.0, self.state.pasto_kg - kg_eaten)
-		# Investigación consume energía
+		# Investigación consume energía (usar mínimo si está en 0)
 		inv_cost_unit = float(getattr(star, 'investigation_energy_cost', 0.0))
-		invest_energy_cost = inv_cost_unit * portion_invest
+		MIN_INV_COST = 0.2
+		eff_inv_unit = max(inv_cost_unit, MIN_INV_COST)
+		invest_energy_cost = eff_inv_unit * portion_invest
 		# Aplicar efectos
 		self.state.energy_pct = max(0.0, min(100.0, self.state.energy_pct - invest_energy_cost + energy_gain))
 		# Vida: aplicar delta (enfermedad/bono)
 		life_delta = float(getattr(star, 'life_delta', 0.0))
 		self.state.life_remaining = max(0.0, self.state.life_remaining + life_delta)
+		# Clamp: la vida no puede exceder el presupuesto inicial (deathAge - startAge)
+		try:
+			max_life = max(0.0, float(self.donkey.vida_maxima) - float(self.donkey.edad))
+			self.state.life_remaining = min(self.state.life_remaining, max_life)
+		except Exception:
+			pass
 		# Posible cambio de salud
 		self.donkey.apply_health_modifier(getattr(star, 'health_modifier', None))
 		# Ajustar salud por nueva energía
@@ -130,12 +148,16 @@ class Simulator:
 			pass
 		# Hipergigante
 		self._apply_hypergiant(star_id)
+		# Energía neta de la visita
+		energy_net = (self.state.energy_pct - before_energy)
 		# Registrar log detallado
 		self.state.stars_log.append({
 			"star": star_id,
 			"kg_eaten": kg_eaten,
 			"energy_gain": energy_gain,
 			"invest_cost": invest_energy_cost,
+			"energy_net": energy_net,
+			"pasto_consumido": kg_eaten,
 			"portion_eat": portion_eat,
 			"portion_invest": portion_invest,
 			"energy_before": before_energy,
@@ -161,13 +183,34 @@ class Simulator:
 			return self.state
 		src = self.route[self.index]
 		dst = self.route[self.index + 1]
-		# shortest path distance src->dst (ignoring blocked edges)
-		dist_map, parent = dijkstra(self.graph, src)
-		distance = dist_map.get(dst)
-		if distance is None:
-			# unreachable due to dynamic blocking
+		# Calcular distancia del tramo; si es un hipersalto definido, el costo es 0
+		if (src, dst) in getattr(self, 'warp_pairs', set()):
+			distance = 0.0
+			# Log opcional del tramo de warp
+			self._log_event("warp_leg", dst)
+		else:
+			# shortest path distance src->dst (ignoring blocked edges)
+			dist_map, parent = dijkstra(self.graph, src)
+			distance = dist_map.get(dst)
+			if distance is None:
+				# unreachable due to dynamic blocking
+				self.state.finished = True
+				self._log_event("blocked_route", src)
+				return self.state
+
+		# Verificar muerte en medio del tramo por vida insuficiente
+		if distance > self.state.life_remaining:
+			prev_life = self.state.life_remaining
+			self.state.life_remaining = 0.0
+			self.state.dead = True
 			self.state.finished = True
-			self._log_event("blocked_route", src)
+			# No avanzamos al destino; registrar evento de muerte en ruta
+			self._log_event("death_en_route", dst, extra={
+				"from": src,
+				"to": dst,
+				"leg_distance": distance,
+				"life_before": prev_life,
+			})
 			return self.state
 		# Move
 		self._consume_movement(distance)
@@ -178,8 +221,8 @@ class Simulator:
 			self._visit_star(dst)
 			self._visited.add(dst)
 		self.state.tick += 1
-		# Check death conditions
-		if self.state.energy_pct <= 0 or self.state.life_remaining <= 0:
+		# Check death conditions (sólo por vida en este proyecto)
+		if self.state.life_remaining <= 0:
 			self.state.dead = True
 			self.state.finished = True
 			self._log_event("death", dst)

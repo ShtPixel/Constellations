@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple, List
 from dataclasses import replace
 import heapq
+import time
 
 try:
     from src.core.models import Graph, Donkey
@@ -327,5 +328,226 @@ def greedy_max_visits_pure(graph: Graph, source: int, donkey: Donkey, include_bl
         used_life += best_move_cost
         current = best_node
         remaining.discard(best_node)
+    return route, used
 
-    return route, used_energy
+
+def max_stars_before_death(graph: Graph, source: int, donkey: Donkey, include_blocked: bool = False) -> Tuple[List[int], float]:
+    """Modo 1: Mayor cantidad de estrellas antes de morir (solo valores iniciales).
+
+    Reglas:
+    - No hay investigación ni consumo/recuperación de energía durante el cálculo.
+    - No se come pasto.
+    - Solo se descuenta vida por desplazamientos (distancia recorrida).
+    - Objetivo: visitar la mayor cantidad de estrellas posible antes de agotar la vida.
+
+    Implementación:
+    - Presupuesto = vida_restante = max(0, vida_maxima - edad).
+    - Costo = distancia por caminos más cortos (Dijkstra), ignorando aristas bloqueadas por defecto.
+    - Sin efectos de hipergigantes, ni mutaciones del burro.
+    """
+    if source not in graph.stars:
+        raise ValueError("source not in graph")
+    vida_restante = max(0.0, float(donkey.vida_maxima) - float(donkey.edad))
+    if vida_restante <= 0:
+        return [source], 0.0
+
+    # Implementación exacta: Longest simple path (sin repetir ningún nodo, incluidos intermedios)
+    # bajo presupuesto de vida (distancia). Usamos DFS con poda por vida y tiempo.
+    start_time = time.time()
+    TIME_LIMIT_MS = 1000  # límite suave para evitar explosión en grafos grandes
+
+    def timed_out():
+        return (time.time() - start_time) * 1000.0 >= TIME_LIMIT_MS
+
+    best_route: List[int] = [source]
+    best_cost: float = 0.0
+
+    def dfs(current: int, visited: set[int], life_left: float, route: List[int], used_dist: float):
+        """Explora rutas agregando nodos alcanzables vía caminos más cortos sin repetir intermedios."""
+        nonlocal best_route, best_cost
+        if timed_out():
+            return
+        # actualizar mejor (más nodos, o igual nodos con menor distancia empleada)
+        if (len(route) > len(best_route)) or (len(route) == len(best_route) and used_dist < best_cost):
+            best_route = route.copy()
+            best_cost = used_dist
+        # Calcular distancias desde current
+        dist_map, parent = dijkstra(graph, current, include_blocked=include_blocked)
+        # Generar candidatos alcanzables dentro de la vida restante
+        candidates: List[Tuple[float,int,List[int]]] = []
+        for v in graph.stars.keys():
+            if v in visited:
+                continue
+            d = dist_map.get(v)
+            if d is None or d > life_left:
+                continue
+            path = reconstruct_path(parent, v)
+            if not path or path[0] != current:
+                continue
+            # intermedios
+            interm = path[1:]
+            # evitar repetir cualquier intermedio
+            if any(n in visited for n in interm):
+                continue
+            candidates.append((d, v, interm))
+        # Orden por distancia ascendente para intentar empaquetar más estrellas
+        candidates.sort(key=lambda x: x[0])
+        for d, v, interm in candidates:
+            new_visited = visited.union(interm)
+            new_route = route + interm
+            dfs(v, new_visited, life_left - d, new_route, used_dist + d)
+
+    dfs(source, {source}, vida_restante, [source], 0.0)
+    return best_route, best_cost
+
+
+def optimal_max_visits_life(
+    graph: Graph,
+    source: int,
+    donkey: Donkey,
+    include_blocked: bool = False,
+    time_limit_ms: int = 1200,
+) -> Tuple[List[int], float]:
+    """Modo 2: Ruta óptima maximizando número de estrellas usando SOLO vida.
+
+    - No se usa energía ni pasto ni investigación; no se modifican condiciones del burro.
+    - Reglas: no repetir estrellas (ni como paso intermedio), costo=distancia (camino más corto),
+      presupuesto = vida_restante.
+    - Retorna (ruta, distancia_total).
+
+    Implementación: backtracking con límite de tiempo.
+    Nota: El problema es NP-difícil; este enfoque busca una ruta óptima o cuasi-óptima
+    dentro del tiempo dado.
+    """
+    if source not in graph.stars:
+        raise ValueError("source not in graph")
+    vida_restante = max(0.0, float(donkey.vida_maxima) - float(donkey.edad))
+    if vida_restante <= 0:
+        return [source], 0.0
+
+    start_time = time.time()
+    def timed_out() -> bool:
+        return (time.time() - start_time) * 1000.0 >= time_limit_ms
+
+    best_route: List[int] = [source]
+    best_cost: float = 0.0
+
+    # Usaremos DFS con poda básica. "visited" evita repetir estrellas (incluye intermedias).
+    def dfs(current: int, visited: set[int], life_left: float, route: List[int], used_dist: float):
+        nonlocal best_route, best_cost
+        if timed_out():
+            # Al expirar tiempo, mantener mejor hasta ahora
+            return
+        # Actualizar mejor si mayor cantidad de nodos o igual con menor costo
+        if (len(route) > len(best_route)) or (len(route) == len(best_route) and used_dist < best_cost):
+            best_route = route.copy()
+            best_cost = used_dist
+        # Dijkstra desde current
+        dist_map, parent = dijkstra(graph, current, include_blocked=include_blocked)
+        # Generar candidatos ordenados por costo ascendente para empacar más nodos
+        candidates: List[Tuple[float, int, List[int]]] = []
+        for v in graph.stars.keys():
+            if v in visited:
+                continue
+            d = dist_map.get(v)
+            if d is None:
+                continue
+            if d > life_left:
+                continue
+            path = reconstruct_path(parent, v)
+            if not path or path[0] != current:
+                continue
+            # No permitir repetir estrellas en el camino (además de current)
+            path_nodes = path[1:]
+            if any(n in visited for n in path_nodes):
+                continue
+            candidates.append((d, v, path))
+        # Ordenar por distancia ascendente
+        candidates.sort(key=lambda x: x[0])
+        for d, v, path in candidates:
+            # Aplicar movimiento y visitar intermedios como visitas válidas
+            path_nodes = path[1:]  # nuevos nodos en orden
+            # Avanzar estado
+            new_visited = visited.union(path_nodes)
+            new_route = route + path_nodes
+            new_life = life_left - d
+            new_used = used_dist + d
+            dfs(v, new_visited, new_life, new_route, new_used)
+
+    dfs(source, {source}, vida_restante, [source], 0.0)
+    return best_route, best_cost
+
+
+def optimal_max_visits_life_beam(
+    graph: Graph,
+    source: int,
+    donkey: Donkey,
+    include_blocked: bool = False,
+    time_limit_ms: int = 1200,
+    beam_width: int = 10,
+) -> Tuple[List[int], float]:
+    """Variación Modo 2 con Beam Search (rápida y robusta).
+
+    - Reglas idénticas a optimal_max_visits_life: solo vida, sin repetir estrellas (incluye intermedias),
+      costo=distancia (Dijkstra), presupuesto=vida_restante.
+    - Usa beam search para explorar mejores candidatos primero y cortar el branching.
+    - Retorna (ruta, distancia_total).
+    """
+    if source not in graph.stars:
+        raise ValueError("source not in graph")
+    vida_restante = max(0.0, float(donkey.vida_maxima) - float(donkey.edad))
+    if vida_restante <= 0:
+        return [source], 0.0
+
+    start_time = time.time()
+    def timed_out() -> bool:
+        return (time.time() - start_time) * 1000.0 >= time_limit_ms
+
+    from collections import namedtuple
+    State = namedtuple("State", ["current", "visited", "route", "life_left", "used"])  # visited is frozenset
+
+    best_route: List[int] = [source]
+    best_cost: float = 0.0
+
+    beam: List[State] = [State(source, frozenset([source]), [source], vida_restante, 0.0)]
+
+    while beam and not timed_out():
+        next_beam: List[State] = []
+        # Expand each state
+        for st in beam:
+            # Update best
+            if (len(st.route) > len(best_route)) or (len(st.route) == len(best_route) and st.used < best_cost):
+                best_route, best_cost = st.route, st.used
+            # Dijkstra from current
+            dist_map, parent = dijkstra(graph, st.current, include_blocked=include_blocked)
+            # Generate candidates reachable
+            candidates: List[Tuple[float, int, List[int]]] = []
+            for v in graph.stars.keys():
+                if v in st.visited:
+                    continue
+                d = dist_map.get(v)
+                if d is None or d > st.life_left:
+                    continue
+                path = reconstruct_path(parent, v)
+                if not path or path[0] != st.current:
+                    continue
+                path_nodes = path[1:]
+                # Avoid repeating any intermediate star
+                if any((n in st.visited) for n in path_nodes):
+                    continue
+                candidates.append((d, v, path_nodes))
+            # Sort by distance asc to pack more nodes
+            candidates.sort(key=lambda x: x[0])
+            # Keep top min(beam_width, len(candidates)) per state for diversity
+            for d, v, path_nodes in candidates[:max(1, beam_width // max(1, len(beam)) )]:
+                new_visited = set(st.visited)
+                new_visited.update(path_nodes)
+                new_route = st.route + path_nodes
+                next_beam.append(State(v, frozenset(new_visited), new_route, st.life_left - d, st.used + d))
+        if not next_beam:
+            break
+        # Rank states globally: by more nodes, then less distance used
+        next_beam.sort(key=lambda s: (-len(s.route), s.used))
+        beam = next_beam[:beam_width]
+
+    return best_route, best_cost

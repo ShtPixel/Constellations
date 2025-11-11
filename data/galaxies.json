@@ -181,6 +181,120 @@
         }
       ]
     },
+{
+  "name": "Constelación del Halcón",
+  "stars": [
+    {
+      "id": 20,
+      "label": "HalcónAlpha",
+      "radius": 0.6,
+      "timeToEat": 2,
+      "amountOfEnergy": 2,
+      "x": 32,
+      "y": 110,
+      "hypergiant": false,
+      "shared": false,
+      "links": [
+        { "to": 21, "distance": 40, "blocked": false },
+        { "to": 22, "distance": 70, "blocked": false }
+      ]
+    },
+    {
+      "id": 21,
+      "label": "HalcónBeta",
+      "radius": 0.5,
+      "timeToEat": 3,
+      "amountOfEnergy": 3,
+      "x": 58,
+      "y": 125,
+      "hypergiant": false,
+      "shared": false,
+      "links": [
+        { "to": 20, "distance": 40, "blocked": false },
+        { "to": 22, "distance": 35, "blocked": false },
+        { "to": 23, "distance": 95, "blocked": false }
+      ]
+    },
+    {
+      "id": 22,
+      "label": "HalcónGamma",
+      "radius": 0.7,
+      "timeToEat": 4,
+      "amountOfEnergy": 4,
+      "x": 90,
+      "y": 140,
+      "hypergiant": true,
+      "shared": false,
+      "links": [
+        { "to": 20, "distance": 70, "blocked": false },
+        { "to": 21, "distance": 35, "blocked": false },
+        { "to": 24, "distance": 60, "blocked": false }
+      ]
+    },
+    {
+      "id": 23,
+      "label": "HalcónDelta",
+      "radius": 0.4,
+      "timeToEat": 1,
+      "amountOfEnergy": 2,
+      "x": 145,
+      "y": 185,
+      "hypergiant": false,
+      "shared": true,
+      "links": [
+        { "to": 21, "distance": 95, "blocked": false },
+        { "to": 25, "distance": 55, "blocked": false }
+      ]
+    },
+    {
+      "id": 24,
+      "label": "HalcónEpsilon",
+      "radius": 0.9,
+      "timeToEat": 5,
+      "amountOfEnergy": 5,
+      "x": 118,
+      "y": 162,
+      "hypergiant": false,
+      "shared": false,
+      "links": [
+        { "to": 22, "distance": 60, "blocked": false },
+        { "to": 25, "distance": 38, "blocked": false },
+        { "to": 26, "distance": 72, "blocked": false }
+      ]
+    },
+    {
+      "id": 25,
+      "label": "HalcónZeta",
+      "radius": 0.5,
+      "timeToEat": 2,
+      "amountOfEnergy": 3,
+      "x": 160,
+      "y": 170,
+      "hypergiant": true,
+      "shared": false,
+      "links": [
+        { "to": 23, "distance": 55, "blocked": false },
+        { "to": 24, "distance": 38, "blocked": false },
+        { "to": 26, "distance": 47, "blocked": false }
+      ]
+    },
+    {
+      "id": 26,
+      "label": "HalcónEta",
+      "radius": 0.6,
+      "timeToEat": 3,
+      "amountOfEnergy": 4,
+      "x": 190,
+      "y": 165,
+      "hypergiant": false,
+      "shared": false,
+      "links": [
+        { "to": 24, "distance": 72, "blocked": false },
+        { "to": 25, "distance": 47, "blocked": false }
+      ]
+    }
+  ]
+},
     {
       "name": "Constelación de la Araña",
       "stars": [

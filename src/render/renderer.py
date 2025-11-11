@@ -36,6 +36,19 @@ try:
 except ModuleNotFoundError:
 	from sound.sound_manager import SoundManager
 
+# Manifest opcional (assets)
+try:
+	from src.core.assets import AssetManifest, load_pygame_image, load_pygame_font
+except ModuleNotFoundError:
+	try:
+		from core.assets import AssetManifest, load_pygame_image, load_pygame_font
+	except ModuleNotFoundError:
+		AssetManifest = None  # type: ignore
+		def load_pygame_image(path):
+			return None
+		def load_pygame_font(path, size):
+			return None
+
 
 class GraphRenderer:
 
@@ -95,6 +108,10 @@ class GraphRenderer:
 		self.sim_speed = 1.0  # steps per second
 		self._last_step_time = 0.0
 		self._sound = SoundManager()
+		# Assets (manifest opcional)
+		self.assets = AssetManifest() if 'AssetManifest' in globals() and AssetManifest else None
+		self._bg_image_original = None
+		self._bg_image_scaled = None
 		self._compute_palette()
 		self._compute_transform()
 
@@ -141,7 +158,19 @@ class GraphRenderer:
 		return sx, sy
 
 	def draw(self, screen):
-		screen.fill(self.bg_color)
+		# Fondo: imagen si está disponible, si no color sólido
+		if self._bg_image_original:
+			if (not self._bg_image_scaled) or (self._bg_image_scaled.get_size() != (self.width, self.height)):
+				try:
+					self._bg_image_scaled = pygame.transform.smoothscale(self._bg_image_original, (self.width, self.height))
+				except Exception:
+					self._bg_image_scaled = None
+			if self._bg_image_scaled:
+				screen.blit(self._bg_image_scaled, (0, 0))
+			else:
+				screen.fill(self.bg_color)
+		else:
+			screen.fill(self.bg_color)
 
 		# Optional background grid (screen-space), to help spatial orientation
 		self._draw_grid(screen)
@@ -383,8 +412,20 @@ class GraphRenderer:
 		pygame.init()
 		screen = pygame.display.set_mode((self.width, self.height))
 		pygame.display.set_caption("Constellations Viewer")
-		self.font = pygame.font.SysFont(None, 18)
-		self.small_font = pygame.font.SysFont(None, 12)
+		# Fuente desde manifest si existe, con fallback
+		ui_font_path = (self.assets.get_font("ui") if self.assets else None)
+		font_main = (load_pygame_font(ui_font_path, 18) if ui_font_path else None)
+		font_small = (load_pygame_font(ui_font_path, 12) if ui_font_path else None)
+		self.font = font_main or pygame.font.SysFont(None, 18)
+		self.small_font = font_small or pygame.font.SysFont(None, 12)
+		# Imagen de fondo opcional
+		bg_path = (self.assets.get_image("background") if self.assets else None)
+		if bg_path:
+			try:
+				img = load_pygame_image(bg_path)
+				self._bg_image_original = img.convert() if img else None
+			except Exception:
+				self._bg_image_original = None
 		clock = pygame.time.Clock()
 		running = True
 		while running:

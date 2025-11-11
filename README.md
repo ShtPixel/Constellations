@@ -35,3 +35,33 @@ falta:
 realizar clanup de los archivos existentes ya que hay cosas redundantes o sin uso
 
 SOLID- FALTA APLICAR BIEN
+
+## Assets (recursos del juego)
+
+Coloca tus recursos estáticos en la carpeta `assets/` en la raíz del proyecto (al mismo nivel que `data/` y `src/`). Ya está creada con esta estructura mínima:
+
+```
+assets/
+    assets.manifest.json     # Mapeo lógico -> ruta física (opcional, ya incluido)
+    sounds/                  # Efectos de sonido
+        death.wav              # Sonido al morir el burro (usado por SoundManager)
+        click.wav              # (Opcional)
+    images/                  # Sprites / fondos
+        background.png         # (Opcional)
+        star.png               # (Opcional)
+        donkey.png             # (Opcional)
+    icons/                   # Íconos de app/HUD
+        app-icon.png           # (Opcional)
+    fonts/                   # Tipografías TTF/OTF
+        JetBrainsMono-Regular.ttf  # (Opcional)
+```
+
+Notas importantes:
+- El código actual solo requiere `assets/sounds/death.wav` para el efecto de muerte. Si no existe, el gestor de sonido falla en silencio.
+- Pygame usa `SysFont` por defecto; si agregas una fuente TTF en `assets/fonts`, se puede integrar más adelante.
+- Mantén los archivos bajo licencias compatibles (CC0/CC-BY para imágenes/sonidos, OFL para fuentes) y documenta su origen.
+
+Sugerencias de formato:
+- Sonidos cortos: `.wav` 44.1kHz mono.
+- Sprites: `.png` con transparencia.
+- Fondos grandes: `.png` o `.jpg` comprimido.

@@ -44,7 +44,7 @@ class Simulator:
 	`TypeError: Simulator() takes no arguments`. This merged version restores
 	proper initialization and functionality.
 	"""
-	def __init__(self, graph: Graph, donkey: Donkey, route: List[int], *, pure_movement_only: bool = False):
+	def __init__(self, graph: Graph, donkey: Donkey, route: List[int], *, pure_movement_only: bool = False, auto_extend: bool = True):
 		if not route:
 			raise ValueError("Route must contain at least one star id")
 		self.graph = graph
@@ -52,6 +52,9 @@ class Simulator:
 		self.route = route
 		self.index = 0  # índice de posición dentro de la ruta
 		self.pure_movement_only = bool(pure_movement_only)
+		# Si auto_extend=True el simulador ampliará la ruta cuando todavía quede vida/energía
+		# y existan estrellas no visitadas alcanzables.
+		self.auto_extend = bool(auto_extend)
 		self._visited: set[int] = set()
 		self.state = SimulationState(
 			current_star=route[0],
@@ -191,15 +194,65 @@ class Simulator:
 			"hypergiant": bool(star.hypergiant),
 		})
 
+	def _try_extend_route(self) -> bool:
+		"""Intenta ampliar la ruta si quedan recursos y hay estrellas alcanzables no visitadas.
+
+		Retorna True si se amplió la ruta.
+		"""
+		if not self.auto_extend or self.state.dead:
+			return False
+		# Recursos mínimos para intentar continuar
+		if self.state.life_remaining <= 0:
+			return False
+		remaining = [sid for sid in self.graph.stars.keys() if sid not in self._visited]
+		# Quitar la actual (ya visitada) si está en remaining
+		if self.state.current_star in remaining:
+			try:
+				remaining.remove(self.state.current_star)
+			except Exception:
+				pass
+		if not remaining:
+			return False
+		# Dijkstra desde la estrella actual
+		try:
+			dist, parent = dijkstra(self.graph, self.state.current_star)
+		except Exception:
+			return False
+		best = None
+		best_cost = float('inf')
+		for sid in remaining:
+			c = dist.get(sid)
+			if c is None:
+				continue
+			# Debe caber en la vida restante
+			if c <= self.state.life_remaining and c < best_cost:
+				best = sid
+				best_cost = c
+		if best is None:
+			return False
+		# Reconstruir camino y añadirlo (sin duplicar el primer nodo)
+		path = reconstruct_path(parent, best)
+		if not path or path[0] != self.state.current_star:
+			return False
+		# Agregar intermedios
+		for node in path[1:]:
+			self.route.append(node)
+		return True
+
 	def step(self) -> SimulationState:
 		if self.state.finished or self.state.dead:
 			return self.state
 		if self.index >= len(self.route) - 1:
-			# Final visit only (si no se ha procesado)
-			self._visit_star(self.route[self.index])
-			self.state.finished = True
-			self._log_event("finish", self.route[self.index])
-			return self.state
+			# Intentar ampliar antes de finalizar
+			if self._try_extend_route():
+				# No marcar finished; continuar flujo normal usando nuevo dst
+				pass
+			else:
+				# Visita final y terminar
+				self._visit_star(self.route[self.index])
+				self.state.finished = True
+				self._log_event("finish", self.route[self.index])
+				return self.state
 		src = self.route[self.index]
 		dst = self.route[self.index + 1]
 		# Calcular distancia del tramo; si es un hipersalto definido, el costo es 0

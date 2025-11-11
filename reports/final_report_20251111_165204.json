@@ -1,0 +1,179 @@
+{
+  "generated_at": "2025-11-11T21:52:04Z",
+  "donkey": {
+    "id": 123,
+    "salud": "Muerto",
+    "energia_pct_inicial": 0.0,
+    "pasto_kg_inicial": 300.0,
+    "edad_inicial": 100.0,
+    "vida_maxima": 800.0
+  },
+  "route_length": 10,
+  "total_cost_estimate": 0.0,
+  "stars": [
+    {
+      "index": 0,
+      "id": 5,
+      "label": "Delta5",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 1,
+      "id": 4,
+      "label": "Gamma4",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 2,
+      "id": 1,
+      "label": "Alpha1",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 3,
+      "id": 2,
+      "label": "Beta23",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 4,
+      "id": 3,
+      "label": "Alpha53",
+      "constellations": [
+        "Constelación de la Araña",
+        "Constelación del Burro"
+      ],
+      "hypergiant": true,
+      "shared": true
+    },
+    {
+      "index": 5,
+      "id": 12,
+      "label": "Beta178",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 6,
+      "id": 14,
+      "label": "Kappa14",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 7,
+      "id": 17,
+      "label": "Mu17",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 8,
+      "id": 13,
+      "label": "Gama23",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": true,
+      "shared": false
+    },
+    {
+      "index": 9,
+      "id": 15,
+      "label": "Lambda15",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    }
+  ],
+  "final": {
+    "final_energy_pct": 0.0,
+    "final_pasto_kg": 299.0,
+    "final_life_remaining": 548.0,
+    "ticks": 2,
+    "dead": true,
+    "finished": true,
+    "visited_unique": 1,
+    "totals": {
+      "kg_eaten": 0.0,
+      "energy_gain": 0.0,
+      "invest_cost": 0.8,
+      "time_eating": 0.0,
+      "time_investigating": 4.0
+    }
+  },
+  "stars_visit_detail": [
+    {
+      "star": 4,
+      "label": "Gamma4",
+      "hypergiant": false,
+      "life_delta": 0.0,
+      "kg_eaten": 0.0,
+      "energy_gain": 0.0,
+      "invest_cost": 0.8,
+      "portion_eat": 0.0,
+      "portion_invest": 4.0,
+      "energy_before": 61.0,
+      "energy_after": 60.2,
+      "pasto_before": 300.0,
+      "pasto_after": 300.0,
+      "life_before": 635.0,
+      "life_after": 635.0,
+      "salud_before": "Buena",
+      "salud_after": "Buena"
+    }
+  ],
+  "simulation_log": [
+    {
+      "tick": 1,
+      "event": "visit",
+      "star": 4,
+      "energy_pct": 60.2,
+      "pasto_kg": 300.0,
+      "life_remaining": 635.0,
+      "hypergiant": false,
+      "distance": 65.0
+    },
+    {
+      "tick": 1,
+      "event": "death",
+      "star": 1,
+      "energy_pct": 0.0,
+      "pasto_kg": 299.0,
+      "life_remaining": 548.0,
+      "hypergiant": false,
+      "reason": "health"
+    }
+  ],
+  "constellations_visited": [
+    "Constelación del Burro",
+    "Constelación de la Araña"
+  ]
+}

@@ -240,7 +240,7 @@
       "x": 145,
       "y": 185,
       "hypergiant": false,
-      "shared": true,
+      "shared": false,
       "links": [
         { "to": 21, "distance": 95, "blocked": false },
         { "to": 25, "distance": 55, "blocked": false }
@@ -384,8 +384,8 @@
           "timeToEat": 2,
           "amountOfEnergy": 2,
 
-          "x": 145,
-          "y": 185,
+          "x": 149,
+          "y": 183,
           "hypergiant": false,
           "shared": false
         },

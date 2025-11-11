@@ -1,0 +1,139 @@
+{
+  "generated_at": "2025-11-11T21:49:01Z",
+  "donkey": {
+    "id": 123,
+    "salud": "Muerto",
+    "energia_pct_inicial": 0.0,
+    "pasto_kg_inicial": 300.0,
+    "edad_inicial": 100.0,
+    "vida_maxima": 400.0
+  },
+  "route_length": 6,
+  "total_cost_estimate": 0.0,
+  "stars": [
+    {
+      "index": 0,
+      "id": 14,
+      "label": "Kappa14",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 1,
+      "id": 17,
+      "label": "Mu17",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 2,
+      "id": 12,
+      "label": "Beta178",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 3,
+      "id": 3,
+      "label": "Alpha53",
+      "constellations": [
+        "Constelación de la Araña",
+        "Constelación del Burro"
+      ],
+      "hypergiant": true,
+      "shared": true
+    },
+    {
+      "index": 4,
+      "id": 2,
+      "label": "Beta23",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 5,
+      "id": 7,
+      "label": "Epsilon7",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    }
+  ],
+  "final": {
+    "final_energy_pct": 0.0,
+    "final_pasto_kg": 298.0,
+    "final_life_remaining": 138.0,
+    "ticks": 2,
+    "dead": true,
+    "finished": true,
+    "visited_unique": 1,
+    "totals": {
+      "kg_eaten": 1.0,
+      "energy_gain": 3.0,
+      "invest_cost": 1.0,
+      "time_eating": 5.0,
+      "time_investigating": 5.0
+    }
+  },
+  "stars_visit_detail": [
+    {
+      "star": 17,
+      "label": "Mu17",
+      "hypergiant": false,
+      "life_delta": 0.0,
+      "kg_eaten": 1.0,
+      "energy_gain": 3.0,
+      "invest_cost": 1.0,
+      "portion_eat": 5.0,
+      "portion_invest": 5.0,
+      "energy_before": 55.0,
+      "energy_after": 57.0,
+      "pasto_before": 300.0,
+      "pasto_after": 299.0,
+      "life_before": 225.0,
+      "life_after": 225.0,
+      "salud_before": "Buena",
+      "salud_after": "Buena"
+    }
+  ],
+  "simulation_log": [
+    {
+      "tick": 1,
+      "event": "visit",
+      "star": 17,
+      "energy_pct": 57.0,
+      "pasto_kg": 299.0,
+      "life_remaining": 225.0,
+      "hypergiant": false,
+      "distance": 75.0
+    },
+    {
+      "tick": 1,
+      "event": "death",
+      "star": 12,
+      "energy_pct": 0.0,
+      "pasto_kg": 298.0,
+      "life_remaining": 138.0,
+      "hypergiant": false,
+      "reason": "health"
+    }
+  ],
+  "constellations_visited": [
+    "Constelación de la Araña",
+    "Constelación del Burro"
+  ]
+}

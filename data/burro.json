@@ -4,7 +4,7 @@
   "pasto": 300,
   "number": 123,
   "startAge": 100,
-  "deathAge": 400,
+  "deathAge": 800,
   "ui": {
     "window": {"width": 1400, "height": 700, "minViewport": 200, "margin": 0},
     "grid": {"spacing": 100},

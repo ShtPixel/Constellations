@@ -1881,6 +1881,12 @@ class GraphRenderer:
 								self.last_message = f"No se pudo preparar simulación: {e}"
 					if self.simulator and not self.simulator.state.finished:
 						st = self.simulator.step()
+						# Si el simulador amplió la ruta automáticamente, sincronizar el plan mostrado
+						try:
+							if hasattr(self.simulator, 'route') and len(self.simulator.route) != len(self.planned_route or []):
+								self.planned_route = list(self.simulator.route)
+						except Exception:
+							pass
 						self.last_message = f"Tick {st.tick} en {st.current_star} E={st.energy_pct:.1f}% L={st.life_remaining:.1f}kg"
 						if st.dead:
 							self._sound.play_death()
@@ -1906,6 +1912,12 @@ class GraphRenderer:
 							self._anim_active = False
 							# Avanzar la simulación un tramo
 							st = self.simulator.step()
+							# Sincronizar ruta si fue ampliada automáticamente
+							try:
+								if hasattr(self.simulator, 'route') and len(self.simulator.route) != len(self.planned_route or []):
+									self.planned_route = list(self.simulator.route)
+							except Exception:
+								pass
 							self._anim_index = self.simulator.index
 							# Configurar estadía breve visual
 							self._dwell_star = st.current_star

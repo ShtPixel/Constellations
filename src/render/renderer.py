@@ -1096,7 +1096,7 @@ class GraphRenderer:
 		font_small = (load_pygame_font(ui_font_path, 12) if ui_font_path else None)
 		self.font = font_main or pygame.font.SysFont(None, 18)
 		self.small_font = font_small or pygame.font.SysFont(None, 12)
-		# Imagen de fondo opcional
+		# Imagen de fondo desde manifest (se dibuja debajo de todo)
 		bg_path = (self.assets.get_image("background") if self.assets else None)
 		if bg_path:
 			try:
@@ -1104,24 +1104,16 @@ class GraphRenderer:
 				self._bg_image_original = img.convert() if img else None
 			except Exception:
 				self._bg_image_original = None
-		# Carga de imágenes de estrellas y burro (si existen)
+		else:
+			self._bg_image_original = None
+		# Carga de imágenes (solo burro). Las estrellas se dibujan como círculos para evitar imagen encima.
 		if self.assets:
 			try:
-				p_star = self.assets.get_image("star")
-				p_hg = self.assets.get_image("star_hypergiant")
 				p_donkey = self.assets.get_image("donkey")
-				if p_star:
-					img = load_pygame_image(p_star)
-					self._img_star = img.convert_alpha() if img else None
-				if p_hg:
-					img = load_pygame_image(p_hg)
-					self._img_star_hg = img.convert_alpha() if img else None
 				if p_donkey:
 					img = load_pygame_image(p_donkey)
 					self._img_donkey = img.convert_alpha() if img else None
 			except Exception:
-				self._img_star = None
-				self._img_star_hg = None
 				self._img_donkey = None
 		clock = pygame.time.Clock()
 		running = True

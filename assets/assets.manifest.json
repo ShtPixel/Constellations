@@ -1,13 +1,10 @@
 {
   "images": {
-    "background": "assets/images/background.png",
-    "star": "assets/images/star.png",
-    "star_hypergiant": "assets/images/star_hypergiant.png",
     "donkey": "assets/images/donkey.png",
-    "icon": "assets/icons/app-icon.png"
+    "icon": "assets/icons/app-icon.png",
+    "background": "assets/images/background.png"
   },
   "sounds": {
-    "death": "assets/sounds/death.wav",
-    "click": "assets/sounds/click.wav"
+    "death": "assets/sounds/death.mp3"
   }
 }

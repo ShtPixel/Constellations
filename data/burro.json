@@ -6,7 +6,7 @@
   "startAge": 100,
   "deathAge": 400,
   "ui": {
-    "window": {"width": 900, "height": 600, "minViewport": 200, "margin": 0},
+    "window": {"width": 1400, "height": 700, "minViewport": 200, "margin": 0},
     "grid": {"spacing": 100},
     "colors": {
       "background": [10, 10, 20],

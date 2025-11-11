@@ -1,0 +1,195 @@
+{
+  "generated_at": "2025-11-11T21:35:32Z",
+  "donkey": {
+    "id": 123,
+    "salud": "Muerto",
+    "energia_pct_inicial": 0.0,
+    "pasto_kg_inicial": 300.0,
+    "edad_inicial": 100.0,
+    "vida_maxima": 400.0
+  },
+  "route_length": 6,
+  "total_cost_estimate": 0.0,
+  "stars": [
+    {
+      "index": 0,
+      "id": 20,
+      "label": "HalcónAlpha",
+      "constellations": [
+        "Constelación del Halcón"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 1,
+      "id": 21,
+      "label": "HalcónBeta",
+      "constellations": [
+        "Constelación del Halcón"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 2,
+      "id": 22,
+      "label": "HalcónGamma",
+      "constellations": [
+        "Constelación del Halcón"
+      ],
+      "hypergiant": true,
+      "shared": false
+    },
+    {
+      "index": 3,
+      "id": 24,
+      "label": "HalcónEpsilon",
+      "constellations": [
+        "Constelación del Halcón"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 4,
+      "id": 25,
+      "label": "HalcónZeta",
+      "constellations": [
+        "Constelación del Halcón"
+      ],
+      "hypergiant": true,
+      "shared": false
+    },
+    {
+      "index": 5,
+      "id": 26,
+      "label": "HalcónEta",
+      "constellations": [
+        "Constelación del Halcón"
+      ],
+      "hypergiant": false,
+      "shared": false
+    }
+  ],
+  "final": {
+    "final_energy_pct": 0.0,
+    "final_pasto_kg": 596.0,
+    "final_life_remaining": 127.0,
+    "ticks": 4,
+    "dead": true,
+    "finished": true,
+    "visited_unique": 3,
+    "totals": {
+      "kg_eaten": 2.0,
+      "energy_gain": 2.5,
+      "invest_cost": 3.0,
+      "time_eating": 9.0,
+      "time_investigating": 15.0
+    }
+  },
+  "stars_visit_detail": [
+    {
+      "star": 21,
+      "label": "HalcónBeta",
+      "hypergiant": false,
+      "life_delta": 0.0,
+      "kg_eaten": 0.0,
+      "energy_gain": 0.0,
+      "invest_cost": 1.2000000000000002,
+      "portion_eat": 0.0,
+      "portion_invest": 6.0,
+      "energy_before": 76.0,
+      "energy_after": 74.8,
+      "pasto_before": 300.0,
+      "pasto_after": 300.0,
+      "life_before": 260.0,
+      "life_after": 260.0,
+      "salud_before": "Excelente",
+      "salud_after": "Buena"
+    },
+    {
+      "star": 22,
+      "label": "HalcónGamma",
+      "hypergiant": true,
+      "life_delta": 0.0,
+      "kg_eaten": 1.0,
+      "energy_gain": 2.0,
+      "invest_cost": 0.8,
+      "portion_eat": 4.0,
+      "portion_invest": 4.0,
+      "energy_before": 39.8,
+      "energy_after": 61.5,
+      "pasto_before": 300.0,
+      "pasto_after": 598.0,
+      "life_before": 225.0,
+      "life_after": 225.0,
+      "salud_before": "Mala",
+      "salud_after": "Mala"
+    },
+    {
+      "star": 24,
+      "label": "HalcónEpsilon",
+      "hypergiant": false,
+      "life_delta": 0.0,
+      "kg_eaten": 1.0,
+      "energy_gain": 0.5,
+      "invest_cost": 1.0,
+      "portion_eat": 5.0,
+      "portion_invest": 5.0,
+      "energy_before": 1.5,
+      "energy_after": 1.0,
+      "pasto_before": 598.0,
+      "pasto_after": 597.0,
+      "life_before": 165.0,
+      "life_after": 165.0,
+      "salud_before": "Moribundo",
+      "salud_after": "Moribundo"
+    }
+  ],
+  "simulation_log": [
+    {
+      "tick": 1,
+      "event": "visit",
+      "star": 21,
+      "energy_pct": 74.8,
+      "pasto_kg": 300.0,
+      "life_remaining": 260.0,
+      "hypergiant": false,
+      "distance": 40.0
+    },
+    {
+      "tick": 2,
+      "event": "visit",
+      "star": 22,
+      "energy_pct": 61.5,
+      "pasto_kg": 598.0,
+      "life_remaining": 225.0,
+      "hypergiant": true,
+      "distance": 35.0
+    },
+    {
+      "tick": 3,
+      "event": "visit",
+      "star": 24,
+      "energy_pct": 1.0,
+      "pasto_kg": 597.0,
+      "life_remaining": 165.0,
+      "hypergiant": false,
+      "distance": 60.0
+    },
+    {
+      "tick": 3,
+      "event": "death",
+      "star": 25,
+      "energy_pct": 0.0,
+      "pasto_kg": 596.0,
+      "life_remaining": 127.0,
+      "hypergiant": true,
+      "reason": "health"
+    }
+  ],
+  "constellations_visited": [
+    "Constelación del Halcón"
+  ]
+}

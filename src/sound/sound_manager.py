@@ -51,15 +51,32 @@ class SoundManager:
 			manifest_path = os.path.join(base, 'death.wav')
 		self.death_path = manifest_path
 		self._death_sound = None
+		self._death_music_path = None
 		if self.enabled and self.death_path and os.path.exists(self.death_path):
 			try:
+				# Prefer Sound() for low-latency playback; may fail for mp3 depending on codecs
 				self._death_sound = pygame.mixer.Sound(self.death_path)
 			except Exception:
 				self._death_sound = None
+				# Fallback: use music player for formats like MP3
+				ext = os.path.splitext(self.death_path)[1].lower()
+				if ext in (".mp3", ".ogg"):
+					self._death_music_path = self.death_path
 
 	def play_death(self):
-		if self.enabled and self._death_sound:
+		if not self.enabled:
+			return
+		# Try sound effect first
+		if self._death_sound:
 			try:
 				self._death_sound.play()
+				return
+			except Exception:
+				pass
+		# Fallback to music player for MP3
+		if self._death_music_path and os.path.exists(self._death_music_path):
+			try:
+				pygame.mixer.music.load(self._death_music_path)
+				pygame.mixer.music.play()
 			except Exception:
 				pass

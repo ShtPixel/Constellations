@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Optional, Tuple, List
+from dataclasses import replace
 import heapq
 
 try:
@@ -146,28 +147,55 @@ def energy_budget_from_donkey(donkey: Donkey) -> float:
     return max(0.0, min(presupuesto_energia, vida_restante))
 
 
-def estimate_static_visit_cost(star, donkey: Donkey) -> float:
-    """Costo energético estático estimado al visitar una estrella (fase 2).
+def compute_energy_budget(donkey: Donkey) -> float:
+    """Presupuesto energético estático usando SOLO valores iniciales.
 
-    Usa investigación_energy_cost (energía por unidad de tiempo de investigación) y time_to_eat.
-    Modelo simplificado:
-    - Se asume que el burro dedica 50% del time_to_eat a comer si energia_pct < 50.
-    - Cada kg consumido en esa fracción recupera gain_per_kg de energía, amortiguando el costo.
-    - Cost_investigacion = investigation_energy_cost * (time_to_eat * 0.5)
-    - Recuperación potencial (si energia_pct < 50) = min(pasto_disponible_para_comer, time_to_eat * 0.5) * gain_per_kg
-    Retorna costo_neto = max(0, cost_investigacion - recuperacion).
+    energia_pct + pasto_kg * gain_per_kg
+    """
+    energia_base = float(donkey.energia_pct)
+    gain_per_kg = float(donkey.energy_gain_per_kg())
+    return max(0.0, energia_base + float(donkey.pasto_kg) * gain_per_kg)
+
+
+def compute_life_budget(donkey: Donkey) -> float:
+    """Presupuesto de vida (años luz) usando SOLO valores iniciales."""
+    return max(0.0, float(donkey.vida_maxima) - float(donkey.edad))
+
+
+def movement_energy_factor(donkey: Donkey) -> float:
+    """Factor energético por unidad de distancia según salud inicial.
+
+    Lee sim_config['movementCostFactorByHealth'] si existe; por defecto usa
+    {Excelente:0.6, Buena:0.75, Regular:0.8, Mala:1.0, Moribundo:1.3}.
+    """
+    cfg = getattr(donkey, 'sim_config', None) or {}
+    factors = cfg.get('movementCostFactorByHealth') or {}
+    try:
+        return float(factors.get(donkey.salud, 1.0))
+    except Exception:
+        # defaults
+        defaults = {
+            "Excelente": 0.6,
+            "Buena": 0.75,
+            "Regular": 0.8,
+            "Mala": 1.0,
+            "Moribundo": 1.3,
+        }
+        return float(defaults.get(donkey.salud, 1.0))
+
+
+def estimate_static_visit_cost(star, donkey: Donkey) -> float:
+    """Costo energético ESTÁTICO de visitar la estrella para el plan puro.
+
+    En 1.2 se calculan rutas con valores iniciales; no hay recuperación ni
+    mutaciones. Aproximamos el costo como:
+        investigation_energy_cost * (time_to_eat * 0.5)
+    (Se asume que la mitad de la sesión se invierte en investigar.)
     """
     tiempo = float(getattr(star, 'time_to_eat', 1.0))
     inv_cost = float(getattr(star, 'investigation_energy_cost', 0.0))
     portion_investigacion = tiempo * 0.5
-    cost_investigacion = inv_cost * portion_investigacion
-    gain_per_kg = donkey.energy_gain_per_kg()
-    recuperacion = 0.0
-    if donkey.energia_pct < 50.0:
-        # Asumir 1 kg por unidad de tiempo como simplificación
-        kg_comidos = portion_investigacion  # tiempo*0.5 unidades -> kg
-        recuperacion = kg_comidos * gain_per_kg
-    return max(0.0, cost_investigacion - recuperacion)
+    return max(0.0, inv_cost * portion_investigacion)
 
 
 def greedy_max_visits_enhanced(graph: Graph, source: int, donkey: Donkey, include_blocked: bool = False) -> Tuple[List[int], float]:
@@ -251,45 +279,53 @@ def greedy_max_visits_pure(graph: Graph, source: int, donkey: Donkey, include_bl
     """
     if source not in graph.stars:
         raise ValueError("source not in graph")
-    # Presupuesto puro
-    budget = energy_budget_from_donkey(donkey)
-    if budget <= 0:
+    # Clonar snapshot del burro para evitar estado mutado previo
+    donkey0 = replace(donkey)
+    # Presupuestos separados
+    energy_budget = compute_energy_budget(donkey0)
+    life_budget = compute_life_budget(donkey0)
+    if energy_budget <= 0 or life_budget <= 0:
         return [source], 0.0
+    move_factor = movement_energy_factor(donkey0)
+
     visited: set[int] = {source}
     route: List[int] = [source]
-    used = 0.0
+    used_energy = 0.0
+    used_life = 0.0
     current = source
     remaining: set[int] = set(graph.stars.keys()) - visited
+
     while remaining:
-        dist, parent = dijkstra(graph, current, include_blocked=include_blocked)
+        dist, _parent = dijkstra(graph, current, include_blocked=include_blocked)
         best_node = None
-        best_total = INF
+        best_score = INF
+        best_move_cost = 0.0
+        best_visit_cost = 0.0
         for v in list(remaining):
-            move_cost = dist.get(v, INF)
-            if move_cost is INF:
+            move_dist = dist.get(v, INF)
+            if move_dist is INF:
                 continue
-            visit_cost = estimate_static_visit_cost(graph.stars[v], donkey)
-            total_cost = move_cost + visit_cost
-            if total_cost < best_total and used + total_cost <= budget:
-                best_total = total_cost
-                best_node = v
+            visit_cost = estimate_static_visit_cost(graph.stars[v], donkey0)
+            # energía que costaría moverse (factor * distancia) + visita
+            energy_need = move_factor * move_dist + visit_cost
+            # vida que se consume solo por moverse
+            life_need = move_dist
+            # factibilidad con presupuestos restantes
+            if used_energy + energy_need <= energy_budget and used_life + life_need <= life_budget:
+                total = energy_need + life_need  # métrica simple combinada
+                if total < best_score:
+                    best_score = total
+                    best_node = v
+                    best_move_cost = move_dist
+                    best_visit_cost = visit_cost
         if best_node is None:
             break
-        # aplicar costo de movimiento
-        move_cost = dist[best_node]
-        used += move_cost
-        path = reconstruct_path(parent, best_node)
-        if path and path[0] == current:
-            for node in path[1:]:
-                if node not in visited:
-                    visited.add(node)
-                route.append(node)
-        else:
-            route.append(best_node)
-            visited.add(best_node)
-        # aplicar costo estático estimado de visita (sin mutaciones nuevas)
-        visit_cost = estimate_static_visit_cost(graph.stars[best_node], donkey)
-        used += visit_cost
+        # Avanzar: solo añadimos el destino (no intermedios) para evitar inflar conteo
+        route.append(best_node)
+        visited.add(best_node)
+        used_energy += (move_factor * best_move_cost + best_visit_cost)
+        used_life += best_move_cost
         current = best_node
         remaining.discard(best_node)
-    return route, used
+
+    return route, used_energy

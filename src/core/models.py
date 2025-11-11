@@ -59,18 +59,32 @@ class Donkey:
     pasto_kg: float
     edad: float
     vida_maxima: float
+    # Configuración opcional de simulación (cargada desde burro.json)
+    sim_config: Optional[dict] = None
 
     def is_alive(self) -> bool:
         return self.energia_pct > 0 and self.vida_maxima > 0
 
     def energy_gain_per_kg(self) -> float:
-        # Default mapping: puedes ajustar o leer desde JSON/setting
+        """Retorna ganancia de energía por kg según salud.
+
+        Si hay configuración en sim_config['healthEnergyGain'] la usa; de lo contrario,
+        aplica valores por defecto del enunciado.
+        """
+        if self.sim_config and isinstance(self.sim_config.get("healthEnergyGain"), dict):
+            mapping = self.sim_config.get("healthEnergyGain")
+            try:
+                return float(mapping.get(self.salud, 2.0))
+            except Exception:
+                pass
+        # Defaults
         mapping = {
             "Excelente": 5.0,
-            "Regular": 3.0,
+            "Buena": 3.0,
+            "Regular": 3.0,  # alias de compatibilidad
             "Mala": 2.0,
             "Moribundo": 0.5,
-            "Muerto": 0.0
+            "Muerto": 0.0,
         }
         return mapping.get(self.salud, 2.0)
 
@@ -79,8 +93,39 @@ class Donkey:
         if not modifier:
             return
         valid = {"Excelente", "Regular", "Mala", "Moribundo", "Muerto"}
-        if modifier in valid:
+        # también aceptar "Buena" como estado válido
+        if modifier in valid or modifier == "Buena":
             self.salud = modifier
+
+    # --- Nuevo: actualización dinámica de salud basada en energía (%) ---
+    def update_health_by_energy(self):
+        """Deriva salud desde energia_pct si no está muerto.
+
+        Mapeo (inclusive límites superiores):
+          0 -> Muerto (si energia_pct <=0)
+          (0,25] -> Moribundo
+          (25,50] -> Mala
+          (50,75] -> Buena (alias Regular)
+          (75,100] -> Excelente
+
+        Si una enfermedad cambió la salud explícitamente a un estado peor (ej. Moribundo)
+        y el % de energía sube, permitimos mejora natural. Si es "Muerto" no cambia.
+        """
+        if self.salud == "Muerto":
+            return
+        e = float(self.energia_pct)
+        if e <= 0:
+            self.salud = "Muerto"
+            return
+        if e <= 25:
+            target = "Moribundo"
+        elif e <= 50:
+            target = "Mala"
+        elif e <= 75:
+            target = "Buena"  # preferimos mostrar Buena
+        else:
+            target = "Excelente"
+        self.salud = target
 
 @dataclass
 class Edge:

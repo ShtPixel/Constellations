@@ -17,7 +17,29 @@ DEFAULT_BURRO_KEYS = {
     "pasto": 300,
     "number": None,
     "startAge": 0,
-    "deathAge": 1000
+    "deathAge": 1000,
+    # simulationConfig opcional con valores por defecto mínimos
+    "simulationConfig": {
+        "healthEnergyGain": {
+            "Excelente": 5,
+            "Buena": 3,
+            "Regular": 3,  # alias para compatibilidad
+            "Mala": 2,
+            "Moribundo": 0.5,
+            "Muerto": 0
+        },
+        "movementCostFactorByHealth": {
+            "Excelente": 0.6,
+            "Buena": 0.75,
+            "Regular": 0.8,  # alias
+            "Mala": 1.0,
+            "Moribundo": 1.3,
+            "Muerto": 0
+        },
+        "eatEnergyThresholdPct": 50,
+        "hypergiantRechargePct": 0.5,
+        "maxEatPortionFraction": 0.5
+    }
 }
 
 class Loader:
@@ -118,14 +140,27 @@ class Loader:
         for k, v in DEFAULT_BURRO_KEYS.items():
             data.setdefault(k, v)
 
+        # Normalizar estadoSalud a los 5 estados del enunciado
+        salud_raw = str(data.get("estadoSalud", "Excelente")).strip()
+        salud_map = {
+            "excelente": "Excelente",
+            "buena": "Buena",
+            "regular": "Buena",  # tratar "Regular" como "Buena" según enunciado
+            "mala": "Mala",
+            "moribundo": "Moribundo",
+            "muerto": "Muerto"
+        }
+        salud_norm = salud_map.get(salud_raw.lower(), "Buena")
+
         donkey = Donkey(
             id=data.get("number"),
             nombre=data.get("nombre", "Burro"),
-            salud=data.get("estadoSalud", "Excelente"),
+            salud=salud_norm,
             energia_pct=float(data.get("burroenergiaInicial", 100)),
             pasto_kg=float(data.get("pasto", 0)),
             edad=float(data.get("startAge", 0)),
-            vida_maxima=float(data.get("deathAge", 0))
+            vida_maxima=float(data.get("deathAge", 0)),
+            sim_config=data.get("simulationConfig")
         )
         return donkey
 

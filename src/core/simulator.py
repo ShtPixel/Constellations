@@ -64,19 +64,29 @@ class Simulator:
 	def _apply_hypergiant(self, star_id: int):
 		star = self.graph.stars.get(star_id)
 		if star and star.hypergiant:
-			self.state.energy_pct = min(100.0, self.state.energy_pct * 1.5)
-			self.state.pasto_kg *= 2.0
+			# Configurable recharge and pasto multiplier
+			cfg = getattr(self.donkey, 'sim_config', None) or {}
+			recharge_pct = float(cfg.get('hypergiantRechargePct', 0.5))
+			pasto_mult = float(cfg.get('hypergiantPastoMultiplier', 2.0))
+			self.state.energy_pct = min(100.0, self.state.energy_pct * (1.0 + max(0.0, recharge_pct)))
+			self.state.pasto_kg *= max(1.0, pasto_mult)
 
 	def _consume_movement(self, distance: float):
-		factor_salud = {
-			"Excelente": 0.6,
-			"Regular": 0.8,
-			"Mala": 1.0,
-			"Moribundo": 1.3,
-			"Muerto": 0.0,
-		}.get(self.donkey.salud, 1.0)
+		# Movement cost factor can depend on health and be configurable
+		cfg = getattr(self.donkey, 'sim_config', None) or {}
+		factors = cfg.get('movementCostFactorByHealth') or {}
+		try:
+			factor_salud = float(factors.get(self.donkey.salud, 1.0))
+		except Exception:
+			factor_salud = 1.0
 		self.state.life_remaining = max(0.0, self.state.life_remaining - distance)
 		self.state.energy_pct = max(0.0, self.state.energy_pct - distance * factor_salud)
+		# actualizar salud según cuartiles de energía
+		try:
+			self.donkey.energia_pct = self.state.energy_pct
+			self.donkey.update_health_by_energy()
+		except Exception:
+			pass
 
 	def _visit_star(self, star_id: int):
 		star = self.graph.stars.get(star_id)
@@ -88,9 +98,12 @@ class Simulator:
 		before_salud = self.donkey.salud
 		# Tiempo total de la sesión en la estrella (heurística)
 		session_time = max(0.5, float(getattr(star, 'time_to_eat', 1.0)) * 2.0)
-		# División comer/investigar
-		portion_eat = session_time * 0.5 if self.state.energy_pct < 50.0 else 0.0
-		portion_invest = session_time - portion_eat
+		# División comer/investigar parametrizable
+		cfg = getattr(self.donkey, 'sim_config', None) or {}
+		threshold = float(cfg.get('eatEnergyThresholdPct', 50.0))
+		max_eat_frac = float(cfg.get('maxEatPortionFraction', 0.5))
+		portion_eat = session_time * max(0.0, min(1.0, max_eat_frac)) if self.state.energy_pct < threshold else 0.0
+		portion_invest = max(0.0, session_time - portion_eat)
 		kg_possible = portion_eat / max(0.1, star.time_to_eat)  # kg que puede comer
 		kg_eaten = min(self.state.pasto_kg, kg_possible)
 		gain_per_kg = self.donkey.energy_gain_per_kg()
@@ -109,6 +122,12 @@ class Simulator:
 		self.state.life_remaining = max(0.0, self.state.life_remaining + life_delta)
 		# Posible cambio de salud
 		self.donkey.apply_health_modifier(getattr(star, 'health_modifier', None))
+		# Ajustar salud por nueva energía
+		try:
+			self.donkey.energia_pct = self.state.energy_pct
+			self.donkey.update_health_by_energy()
+		except Exception:
+			pass
 		# Hipergigante
 		self._apply_hypergiant(star_id)
 		# Registrar log detallado
@@ -171,6 +190,30 @@ class Simulator:
 	def run_all(self) -> SimulationState:
 		while not self.state.finished and not self.state.dead:
 			self.step()
+		return self.state
+
+	def teleport_and_visit(self, dest_star_id: int):
+		"""Teletransporta al burro a otra estrella sin costo de movimiento y registra visita.
+
+		Inserta el destino como siguiente tramo en la ruta, avanza el índice y aplica la lógica
+		de visita (comer/investigar/hipergigante). Registra un evento 'teleport'.
+		"""
+		if self.state.finished or self.state.dead:
+			return self.state
+		# Insertar destino en la ruta como próximo tramo si no está ya en esa posición
+		try:
+			self.route.insert(self.index + 1, dest_star_id)
+		except Exception:
+			pass
+		# Avanzar índice y fijar estrella actual
+		self.index = min(self.index + 1, len(self.route) - 1)
+		self.state.current_star = dest_star_id
+		# Visitar si no estaba registrada
+		if dest_star_id not in self._visited:
+			self._visit_star(dest_star_id)
+			self._visited.add(dest_star_id)
+		# Loguear evento explícito de teletransporte
+		self._log_event("teleport", dest_star_id)
 		return self.state
 
 	def _log_event(self, kind: str, star_id: int, extra: Optional[Dict] = None):

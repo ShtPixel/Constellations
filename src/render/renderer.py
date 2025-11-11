@@ -130,6 +130,29 @@ class GraphRenderer:
 		self._dwell_star = None
 		self._dwell_start_ms = 0.0
 		self._dwell_duration_ms = 0.0
+		# Live report overlay
+		self._live_report_enabled = False
+		self._edge_events: list[tuple[str,int,int]] = []  # (action, u, v)
+		# Visual focus mode: atenuar aristas fuera de la ruta planificada
+		self._focus_mode = False
+		# Ruta visual toggles
+		self._clean_mode = False  # mostrar solo tramo actual + siguientes 2
+		self._dashed_pending = True  # tramos pendientes con línea discontinua
+		self._show_arrows = True  # flecha en tramo actual
+		self._unreachable_flag = False  # cache aviso inalcanzable
+		# Arrival edit panel (pausa para editar vida en estrella actual)
+		self._arrival_input_active = False
+		self._arrival_input_value = ""
+		self._arrival_star_id = None
+		self._arrival_prev_applied_delta = 0.0
+		# Arrival multi-field editing (life_delta, investigation_energy_cost, energy_bonus_pct)
+		self._arrival_fields = ["life_delta", "investigation_energy_cost", "energy_bonus_pct"]
+		self._arrival_field_index = 0
+		# Hypergiant teleport modal
+		self._hyper_modal_active = False
+		self._hyper_candidates: list[tuple[int,str,str]] = []  # (sid, label, constellation)
+		self._hyper_selected_idx = 0
+		self._hyper_source_star = None
 		# Edición de efectos por estrella
 		self._edit_mode = False
 		self._edit_star = None
@@ -139,6 +162,12 @@ class GraphRenderer:
 		self._bg_image_scaled = None
 		self._compute_palette()
 		self._compute_transform()
+		# Top bars baseline and alerts
+		self._max_life = float(getattr(self.donkey, 'vida_maxima', 100.0)) - float(getattr(self.donkey, 'edad', 0.0)) if self.donkey else 100.0
+		self._max_pasto = float(getattr(self.donkey, 'pasto_kg', 100.0)) if self.donkey else 100.0
+		self._alerts: list[dict] = []  # {text, color, t0, dur}
+		self._pre_step_energy: float | None = None
+		self._pre_step_life: float | None = None
 
 	def _compute_palette(self):
 		# Use palette strictly from JSON (ui_config). If missing, require explicit mapping
@@ -212,7 +241,22 @@ class GraphRenderer:
 		# Optional background grid (screen-space), to help spatial orientation
 		self._draw_grid(screen)
 
-		# Draw edges (unique undirected)
+		# Top stat bars
+		self._draw_top_bars(screen)
+
+		# Draw edges (unique undirected) with focus mode dimming
+		route_edges: Set[Tuple[int, int]] = set()
+		if self.planned_route and len(self.planned_route) > 1:
+			for i in range(len(self.planned_route) - 1):
+				a = self.planned_route[i]
+				b = self.planned_route[i + 1]
+				route_edges.add((min(a, b), max(a, b)))
+		edge_layer = None
+		if self._focus_mode and self.planned_route:
+			try:
+				edge_layer = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+			except Exception:
+				edge_layer = None
 		drawn: Set[Tuple[int, int]] = set()
 		for u, nbrs in self.graph.adjacency.items():
 			for v, edge in nbrs.items():
@@ -226,8 +270,19 @@ class GraphRenderer:
 					continue
 				x1, y1 = self.world_to_screen(su.x, su.y)
 				x2, y2 = self.world_to_screen(sv.x, sv.y)
-				color = self.edge_blocked_color if edge.blocked else self.edge_color
-				pygame.draw.line(screen, color, (x1, y1), (x2, y2), 2)
+				if edge.blocked:
+					pygame.draw.line(screen, self.edge_blocked_color, (x1, y1), (x2, y2), 2)
+					continue
+				if self._focus_mode and self.planned_route and key not in route_edges:
+					if edge_layer:
+						# draw dimmed on alpha layer
+						pygame.draw.line(edge_layer, (170, 180, 200, 70), (x1, y1), (x2, y2), 1)
+					else:
+						pygame.draw.line(screen, (180, 180, 180), (x1, y1), (x2, y2), 1)
+				else:
+					pygame.draw.line(screen, self.edge_color, (x1, y1), (x2, y2), 2)
+		if edge_layer:
+			screen.blit(edge_layer, (0, 0))
 
 		# Draw stars
 		for cname, const in self.graph.constellations.items():
@@ -285,29 +340,73 @@ class GraphRenderer:
 			visited_count = 0
 			if self.simulator:
 				visited_count = max(0, int(self._anim_index))
+			# Detect unreachable next leg (dynamic block)
+			self._unreachable_flag = False
+			if self.simulator and not self.simulator.state.finished:
+				leg = self.simulator.index
+				if leg < len(self.planned_route) - 1:
+					src = self.planned_route[leg]
+					dst = self.planned_route[leg + 1]
+					# comprobar si hay camino ignorando bloqueadas
+					try:
+						dist_map, _p = dijkstra(self.graph, src)
+						if dst not in dist_map:
+							self._unreachable_flag = True
+					except Exception:
+						pass
+			# Drawing legs with styling
 			for i in range(len(self.planned_route) - 1):
 				a = self.planned_route[i]
 				b = self.planned_route[i + 1]
-				if a in self.graph.stars and b in self.graph.stars:
-					sa = self.graph.stars[a]
-					sb = self.graph.stars[b]
-					x1, y1 = self.world_to_screen(sa.x, sa.y)
-					x2, y2 = self.world_to_screen(sb.x, sb.y)
-					if i < visited_count:
-						color = (0, 220, 120)  # visited
-					elif i == visited_count and self._anim_active:
-						color = (255, 215, 0)  # current
-					else:
-						color = (0, 200, 255)  # remaining
-					pygame.draw.line(screen, color, (x1, y1), (x2, y2), 3)
-			# Step numbers
+				if a not in self.graph.stars or b not in self.graph.stars:
+					continue
+				sa = self.graph.stars[a]
+				sb = self.graph.stars[b]
+				x1, y1 = self.world_to_screen(sa.x, sa.y)
+				x2, y2 = self.world_to_screen(sb.x, sb.y)
+				# Determine style bucket
+				if i < visited_count:
+					color = (30, 160, 90)  # visited subdued green
+					width = 2
+					alpha = 160
+				elif i == visited_count:
+					color = (255, 200, 40)  # current bright yellow
+					width = 5
+					alpha = 255
+				elif i == visited_count + 1:
+					color = (0, 210, 190)  # next leg teal
+					width = 4
+					alpha = 230
+				elif i == visited_count + 2:
+					color = (0, 170, 220)  # next+1
+					width = 3
+					alpha = 210
+				else:
+					# farther futures
+					color = (120, 140, 150)
+					width = 2
+					alpha = 110
+				# Clean mode hides far futures
+				if self._clean_mode and i > visited_count + 2:
+					continue
+				# Unreachable highlight (first pending only)
+				if self._unreachable_flag and i == visited_count:
+					color = (255, 70, 70)
+					width = 6
+					alpha = 255
+				# Simplified: draw solid line for all legs (no dashed/arrow toggles)
+				pygame.draw.line(screen, color, (x1, y1), (x2, y2), width)
+			# Step numbers (compact: show only vicinity unless no simulator)
 			if self.small_font:
 				for idx, sid in enumerate(self.planned_route):
+					if self._clean_mode and self.simulator and (idx < visited_count - 1 or idx > visited_count + 3):
+						continue
 					st = self.graph.stars.get(sid)
 					if not st:
 						continue
 					x, y = self.world_to_screen(st.x, st.y)
-					img = self.small_font.render(str(idx), True, (0, 220, 255))
+					col = (200, 230, 255) if idx >= visited_count else (140, 180, 170)
+					img = self.small_font.render(str(idx), True, col)
 					screen.blit(img, (x + 6, y + 6))
 			# Moving marker if animating
 			if self._anim_active and self._anim_src is not None and self._anim_dst is not None:
@@ -347,7 +446,7 @@ class GraphRenderer:
 			end_ang = start_ang + 2 * math.pi * p
 			pygame.draw.arc(screen, (255, 200, 0), rect, start_ang, end_ang, 4)
 
-		# HUD: instructions and selection info (moved to bottom-right)
+		# HUD: instructions and selection info (moved to bottom-right, with wrapping)
 		if self.font:
 			info_lines = []
 			# Dynamic status first
@@ -375,33 +474,62 @@ class GraphRenderer:
 						info_lines.append(f"Hover {hover_sid} d={self.dists[hover_sid]:.1f}")
 					else:
 						info_lines.append(f"Hover {hover_sid} sin ruta")
-			info_lines.append("RutaHover:" + ("ON" if self.show_path_to_hover else "OFF"))
-			info_lines.append("Controles: Click=Origen R=Djk P=Ruta G=Plan H=PlanPuro O=Reload E=Edit T=Reporte L=Log B=Bloq C=Clear Space=Play N=Step +/-=Vel ESC")
+			# Simplified controls (restore R for Dijkstra distances panel)
+			info_lines.append("Controles: Click=Origen R=Dists G=Plan H=PlanPuro Space=Play/Pause N=Step T=Reporte L=Log O=Reload E=Editar B=Bloq V=Live +/-=Vel ESC")
 			if self.last_message:
 				info_lines.append(self.last_message)
 			# Legend appended after a separator line if fits
 			legend_lines = []
 			for name, color in self.constellation_colors.items():
 				legend_lines.append(f"{name}")
-			# Compute block size
-			all_lines = info_lines + ["-"] + legend_lines if legend_lines else info_lines
-			# Render bottom-right
+			# Compose lines with simple wrapping based on window width
+			def wrap_text(line: str, max_px: int) -> list[str]:
+				words = line.split(' ')
+				rows = []
+				cur = ''
+				for w in words:
+					test = (cur + ' ' + w).strip()
+					if self.font.size(test)[0] <= max_px:
+						cur = test
+					else:
+						if cur:
+							rows.append(cur)
+						cur = w
+				if cur:
+					rows.append(cur)
+				return rows
+
 			pad = 8
-			rendered = [self.font.render(line, True, (230, 230, 230)) for line in all_lines]
-			height_block = sum(r.get_height()+2 for r in rendered)
-			width_block = max(r.get_width() for r in rendered) if rendered else 0
-			bx = self.width - width_block - pad - 4
+			max_width = int(self.width * 0.42)
+			wrapped = []
+			for line in info_lines:
+				wrapped.extend(wrap_text(line, max_width))
+			if legend_lines:
+				wrapped.append("-")
+				for l in legend_lines:
+					wrapped.extend(wrap_text(l, max_width))
+			rendered = [self.font.render(line, True, (230, 230, 230)) if line != '-' else None for line in wrapped]
+			height_block = 0
+			width_block = 0
+			for surf, text in zip(rendered, wrapped):
+				if text == '-':
+					height_block += 6
+					continue
+				width_block = max(width_block, surf.get_width() if surf else 0)
+				height_block += (surf.get_height() + 2) if surf else 0
+			bx = self.width - min(width_block, max_width) - pad - 4
 			by = self.height - height_block - pad - 4
 			# Background panel
-			pygame.draw.rect(screen, (0, 0, 0, 160), (bx-4, by-4, width_block + 8, height_block + 8))
+			pygame.draw.rect(screen, (0, 0, 0, 160), (bx-4, by-4, min(width_block, max_width) + 8, height_block + 8))
 			y = by
-			for line_surf, text in zip(rendered, all_lines):
-				if text == "-":
-					pygame.draw.line(screen, (90, 90, 90), (bx, y), (bx + width_block, y), 1)
-					y += 4
+			for surf, text in zip(rendered, wrapped):
+				if text == '-':
+					pygame.draw.line(screen, (90, 90, 90), (bx, y), (bx + min(width_block, max_width), y), 1)
+					y += 6
 					continue
-				screen.blit(line_surf, (bx, y))
-				y += line_surf.get_height() + 2
+				if surf:
+					screen.blit(surf, (bx, y))
+					y += surf.get_height() + 2
 
 		# Overlay edición de estrella
 		if self._edit_mode and self._edit_star is not None and self._edit_star in self.graph.stars and self.small_font:
@@ -426,6 +554,53 @@ class GraphRenderer:
 			for r in rendered:
 				screen.blit(r, (bx, cy))
 				cy += r.get_height()+2
+
+		# Panel de edición de vida al llegar a una estrella (modal centrado)
+		if self._arrival_input_active and (self.font or self.small_font):
+			f = self.font or self.small_font
+			field_names = {
+				"life_delta": "Δ Vida (años luz)",
+				"investigation_energy_cost": "Costo Energía Invest.",
+				"energy_bonus_pct": "Bonus Energía (%)",
+			}
+			current_field = self._arrival_fields[self._arrival_field_index]
+			header = field_names.get(current_field, current_field)
+			lines = [
+				"Edición de efectos en estrella",
+				f"Estrella: {self._arrival_star_id}",
+				f"Campo: {header}",
+				f"Valor: {self._arrival_input_value}",
+				"Enter=Guardar  Esc=Cancelar  Backspace=Borrar  [ / ] Cambiar campo",
+			]
+			rendered = [f.render(t, True, (255,255,255)) for t in lines]
+			pw = max(r.get_width() for r in rendered)
+			ph = sum(r.get_height()+6 for r in rendered) + 24
+			bx = max(20, (self.width - pw)//2 - 12)
+			by = max(20, (self.height - ph)//2 - 12)
+			pygame.draw.rect(screen, (0,0,0), (bx-8, by-8, pw+32, ph+32))
+			pygame.draw.rect(screen, (120,120,120), (bx-8, by-8, pw+32, ph+32), 2)
+			y = by
+			for r in rendered:
+				screen.blit(r, (bx, y))
+				y += r.get_height()+6
+			# Caja de entrada destacada
+			ibox_w = max(160, pw)
+			ibox_h = 28
+			pygame.draw.rect(screen, (20,20,20), (bx, y+4, ibox_w, ibox_h))
+			pygame.draw.rect(screen, (0,200,120), (bx, y+4, ibox_w, ibox_h), 1)
+			val_surf = f.render(self._arrival_input_value or "0", True, (0, 255, 180))
+			screen.blit(val_surf, (bx+6, y+6))
+
+		# Overlay de alertas efímeras
+		self._draw_alerts(screen)
+
+		# Hypergiant selection overlay
+		if self._hyper_modal_active:
+			self._draw_hyper_modal(screen)
+
+		# Overlay de reporte en vivo
+		if self._live_report_enabled:
+			self._draw_live_report(screen)
 
 	def _draw_grid(self, screen):
 		"""Draw a simple screen-space grid inside the margin box."""
@@ -472,6 +647,90 @@ class GraphRenderer:
 			img = self.font.render(name, True, (220, 220, 220))
 			screen.blit(img, (x + 18, y - 2))
 			y += 18
+
+	def _draw_live_report(self, screen):
+		"""Pequeño panel superior-izquierda con estado en tiempo real."""
+		if not (self.small_font or self.font):
+			return
+		f = self.small_font or self.font
+		lines: list[str] = []
+		# Estado de simulación
+		if self.simulator:
+			st = self.simulator.state
+			lines.append(f"Tick {st.tick} | Star {st.current_star}")
+			lines.append(f"E={st.energy_pct:.1f}% Vida={st.life_remaining:.1f} Pasto={st.pasto_kg:.1f}kg")
+			if st.dead:
+				lines.append("Estado: MUERTO")
+			elif st.finished:
+				lines.append("Estado: FINALIZADO")
+			else:
+				# Progreso de tramo actual
+				if self._anim_active and self._anim_src is not None and self._anim_dst is not None:
+					now = pygame.time.get_ticks()
+					t = 0.0 if self._anim_duration_ms <= 0 else max(0.0, min(1.0, (now - self._anim_start_ms) / self._anim_duration_ms))
+					lines.append(f"Tramo {int(self._anim_index)}/{max(0,len(self.planned_route)-1)} prog={t*100:.0f}%")
+				else:
+					lines.append(f"Tramo {int(self._anim_index)}/{max(0,len(self.planned_route)-1)} listo")
+				# Aviso de inalcanzable
+				if getattr(self, '_unreachable_flag', False) and self.planned_route and not st.finished:
+					leg = self.simulator.index
+					if 0 <= leg < len(self.planned_route) - 1:
+						lines.append(f"TRAMO INALCANZABLE: {self.planned_route[leg]}→{self.planned_route[leg+1]}")
+				# Progreso de estadía
+				if self._dwell_active and self._dwell_star is not None:
+					elapsed = max(0.0, pygame.time.get_ticks() - self._dwell_start_ms)
+					p = 0.0 if self._dwell_duration_ms <= 0 else max(0.0, min(1.0, elapsed / self._dwell_duration_ms))
+					lines.append(f"Estadía en {self._dwell_star}: {p*100:.0f}%")
+			# Último log de visita
+			if self.simulator.state.stars_log:
+				last = self.simulator.state.stars_log[-1]
+				pe = last.get('portion_eat') if isinstance(last, dict) else None
+				pi = last.get('portion_invest') if isinstance(last, dict) else None
+				try:
+					lines.append(f"Visita: comer={float(pe):.1f} inv={float(pi):.1f}")
+				except Exception:
+					pass
+		else:
+			lines.append("Simulación: inactiva")
+			if self.planned_route:
+				lines.append(f"Plan preparado: {len(self.planned_route)} nodos")
+
+		# Eventos recientes de aristas
+		if self._edge_events:
+			lines.append("-")
+			lines.append("Aristas recientes:")
+			for action,u,v in list(self._edge_events)[-5:][::-1]:
+				lines.append(f"{action} {u}-{v}")
+
+		# Render panel en esquina superior izquierda
+		pad = 8
+		rendered = [f.render(line, True, (230, 230, 230)) if line != "-" else None for line in lines]
+		w = 0
+		h = 0
+		for surf, line in zip(rendered, lines):
+			if line == "-":
+				h += 4
+				continue
+			if surf:
+				w = max(w, surf.get_width())
+				h += surf.get_height() + 2
+		bx = pad
+		by = pad
+		pygame.draw.rect(screen, (0, 0, 0), (bx-4, by-4, w + 8, h + 8))
+		y = by
+		for surf, line in zip(rendered, lines):
+			if line == "-":
+				pygame.draw.line(screen, (90, 90, 90), (bx, y), (bx + w, y), 1)
+				y += 4
+				continue
+			if surf:
+				# Render en rojo si es aviso de inalcanzable
+				if line.startswith("TRAMO INALCANZABLE"):
+					warn = f.render(line, True, (255, 90, 90))
+					screen.blit(warn, (bx, y))
+				else:
+					screen.blit(surf, (bx, y))
+				y += surf.get_height() + 2
 
 	def _star_at_pixel(self, px: int, py: int, threshold: int = 10) -> int | None:
 		closest = None
@@ -545,6 +804,148 @@ class GraphRenderer:
 		running = True
 		while running:
 			for event in pygame.event.get():
+				# Hypergiant modal has highest priority when active
+				if getattr(self, '_hyper_modal_active', False):
+					if event.type == pygame.KEYDOWN:
+						if event.key in (pygame.K_ESCAPE,):
+							self._hyper_modal_active = False
+							self.last_message = "Salto cancelado"
+							continue
+						elif event.key in (pygame.K_UP, pygame.K_w):
+							self._hyper_selected_idx = max(0, self._hyper_selected_idx - 1)
+							continue
+						elif event.key in (pygame.K_DOWN, pygame.K_s):
+							self._hyper_selected_idx = min(max(0, len(self._hyper_candidates) - 1), self._hyper_selected_idx + 1)
+							continue
+						elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+							if 0 <= self._hyper_selected_idx < len(self._hyper_candidates):
+								sid, _label, _cname = self._hyper_candidates[self._hyper_selected_idx]
+								try:
+									# Ejecutar teletransporte inmediato
+									if self.simulator:
+										self.simulator.teleport_and_visit(sid)
+										# preparar una breve estadía/visual
+										now_ms = pygame.time.get_ticks()
+										self._dwell_active = True
+										self._dwell_star = sid
+										self._dwell_start_ms = now_ms
+										self._dwell_duration_ms = 600
+										self._prepare_animation(reset_index=True)
+									self.last_message = f"Teleport a {sid}"
+								except Exception as e:
+									self.last_message = f"Error teleport: {e}"
+							self._hyper_modal_active = False
+							continue
+					# Consume events while modal active
+					continue
+				try:
+					# Panel de edición activo: captura entrada exclusivamente
+					if self._arrival_input_active:
+						if event.type == pygame.KEYDOWN:
+							if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+								# Aplicar cambios y reanudar (ajuste retroactivo según campo)
+								try:
+									new_val = float(self._arrival_input_value or 0)
+									field = self._arrival_fields[self._arrival_field_index]
+									if self._arrival_star_id is not None and self._arrival_star_id in self.graph.stars and self.simulator:
+										star = self.graph.stars[self._arrival_star_id]
+										last = self.simulator.state.stars_log[-1] if self.simulator.state.stars_log else None
+										if last and last.get("star") == self._arrival_star_id:
+											if field == "life_delta":
+												prev = float(last.get("life_delta", 0.0))
+												adj = new_val - prev
+												last["life_delta"] = new_val
+												if "life_after" in last:
+													last["life_after"] = max(0.0, float(last["life_after"]) + adj)
+												self.simulator.state.life_remaining = max(0.0, float(self.simulator.state.life_remaining) + adj)
+											elif field == "investigation_energy_cost":
+												portion_invest = float(last.get("portion_invest", 0.0))
+												prev_cost = float(last.get("invest_cost", 0.0))
+												new_cost = portion_invest * new_val
+												energy_after = float(last.get("energy_after", self.simulator.state.energy_pct))
+												energy_after += prev_cost
+												energy_after -= new_cost
+												energy_after = max(0.0, min(100.0, energy_after))
+												last["invest_cost"] = new_cost
+												last["energy_after"] = energy_after
+												self.simulator.state.energy_pct = energy_after
+											elif field == "energy_bonus_pct":
+												kg_eaten = float(last.get("kg_eaten", 0.0))
+												base_gain_per_kg = self.donkey.energy_gain_per_kg()
+												prev_gain = float(last.get("energy_gain", 0.0))
+												new_gain = kg_eaten * base_gain_per_kg * (1.0 + max(0.0, new_val))
+												energy_after = float(last.get("energy_after", self.simulator.state.energy_pct))
+												energy_after -= prev_gain
+												energy_after += new_gain
+												energy_after = max(0.0, min(100.0, energy_after))
+												last["energy_gain"] = new_gain
+												last["energy_after"] = energy_after
+												self.simulator.state.energy_pct = energy_after
+										setattr(star, field, float(new_val))
+									if field == "life_delta":
+										self.last_message = f"Vida ajustada {self._arrival_star_id}: {new_val:+.2f}"
+									elif field == "investigation_energy_cost":
+										self.last_message = f"Costo investigación ajustado {self._arrival_star_id}: {new_val:.2f}"
+									elif field == "energy_bonus_pct":
+										self.last_message = f"Bonus energía ajustado {self._arrival_star_id}: {new_val:.2f}"
+								except Exception as e:
+									self.last_message = f"Error aplicando valor: {e}"
+								# Cerrar panel y reanudar SOLO al confirmar con Enter
+								self._arrival_input_active = False
+								self._arrival_star_id = None
+								self._arrival_input_value = ""
+								self.sim_running = True
+						elif event.key == pygame.K_ESCAPE:
+							# Cancelar sin cambios (también cierra panel)
+							self._arrival_input_active = False
+							self._arrival_star_id = None
+							self._arrival_input_value = ""
+							# Mantener sim en pausa; el usuario la reanudará con Space
+							# (no forzamos sim_running=True al cancelar)
+						elif event.key in (pygame.K_BACKSPACE,):
+							self._arrival_input_value = self._arrival_input_value[:-1]
+						elif event.key == pygame.K_LEFTBRACKET:
+							# Cambiar al campo anterior
+							self._arrival_field_index = (self._arrival_field_index - 1) % len(self._arrival_fields)
+							# Rellenar valor actual del campo seleccionado
+							star = self.graph.stars.get(self._arrival_star_id) if self._arrival_star_id is not None else None
+							if star:
+								val = getattr(star, self._arrival_fields[self._arrival_field_index], 0.0)
+								self._arrival_input_value = f"{float(val):.2f}"
+						elif event.key == pygame.K_RIGHTBRACKET:
+							# Cambiar al siguiente campo
+							self._arrival_field_index = (self._arrival_field_index + 1) % len(self._arrival_fields)
+							star = self.graph.stars.get(self._arrival_star_id) if self._arrival_star_id is not None else None
+							if star:
+								val = getattr(star, self._arrival_fields[self._arrival_field_index], 0.0)
+								self._arrival_input_value = f"{float(val):.2f}"
+						else:
+							ch = None
+							if pygame.K_0 <= event.key <= pygame.K_9:
+								ch = chr(event.key)
+							elif event.key in (pygame.K_PERIOD, pygame.K_KP_PERIOD):
+								ch = '.'
+							elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+								ch = '-'
+							elif pygame.K_KP0 <= event.key <= pygame.K_KP9:
+								ch = str(event.key - pygame.K_KP0)
+							if ch is not None:
+								buf = self._arrival_input_value
+								if ch == '-' and buf:
+									pass
+								elif ch == '.' and '.' in buf:
+									pass
+								else:
+									self._arrival_input_value += ch
+						continue
+				except Exception as e:
+					# No cerrar el juego por errores de UI; mostrar mensaje y seguir
+					self.last_message = f"Error UI: {e}"
+					continue
+				except Exception as e:
+					# No cerrar el juego por errores de UI; mostrar mensaje y seguir
+					self.last_message = f"Error UI: {e}"
+					continue
 				if event.type == pygame.QUIT:
 					running = False
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -569,8 +970,10 @@ class GraphRenderer:
 								route, used = greedy_max_visits_enhanced(self.graph, self.selected_origin, self.donkey)
 								self.planned_route = route
 								self.simulator = Simulator(self.graph, self.donkey, self.planned_route)
+								self._set_stat_baselines()
 								self._prepare_animation(reset_index=True)
 								self.sim_running = True
+								self._focus_mode = True
 								self.last_message = f"Plan auto: {len(route)} nodos (costo≈{used:.1f})"
 							except Exception as e:
 								self.last_message = f"Auto-plan falló: {e}"
@@ -598,24 +1001,17 @@ class GraphRenderer:
 						edge = self._nearest_edge(px, py)
 						if edge:
 							u, v = edge
+							prev = self.graph.adjacency.get(u, {}).get(v)
 							self.graph.toggle_edge_block(u, v)
 							acted = True
+							new_state = self.graph.adjacency.get(u, {}).get(v)
+							if new_state is not None:
+								action = "BLOCK" if new_state.blocked else "UNBLOCK"
+								self._edge_events.append((action, u, v))
 						self.last_message = "Arista bloqueada/habilitada" if acted else "No se encontró arista cercana"
 					except Exception as e:
 						self.last_message = f"Error al bloquear: {e}"
-				elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-					# Recalcular Dijkstra desde el origen
-					if self.selected_origin is None:
-						self.last_message = "Define un origen antes de R"
-					else:
-						try:
-							self.dists, self.parents = dijkstra(self.graph, self.selected_origin)
-							self.last_message = f"Dijkstra listo ({len(self.dists)} alcanzables)"
-						except Exception as e:
-							self.last_message = f"Error Dijkstra: {e}"
-				elif event.type == pygame.KEYDOWN and event.key == pygame.K_p:
-					self.show_path_to_hover = not self.show_path_to_hover
-					self.last_message = "Ruta hover activada" if self.show_path_to_hover else "Ruta hover desactivada"
+				# Eliminado: teclas R (Dijkstra manual) y P (ruta hover)
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_g:
 					# Plan estático mejorado: presupuesto por burro + costo de visita por estrella
 					if self.selected_origin is None:
@@ -630,9 +1026,11 @@ class GraphRenderer:
 								# Prepare simulator for the new plan
 								try:
 									self.simulator = Simulator(self.graph, self.donkey, self.planned_route)
+									self._set_stat_baselines()
 									self._prepare_animation(reset_index=True)
 									self.sim_running = True
 									self._last_step_time = 0.0
+									self._focus_mode = True
 								except Exception:
 									self.simulator = None
 									self.sim_running = False
@@ -652,14 +1050,27 @@ class GraphRenderer:
 						try:
 							route, used = _pure(self.graph, self.selected_origin, self.donkey)
 							self.planned_route = route
-							# reset sim for new plan
 							self.simulator = None
 							self._anim_active = False
 							self._dwell_active = False
+							self._focus_mode = True
 							budget = energy_budget_from_donkey(self.donkey)
 							self.last_message = f"Plan puro listo: {len(route)} nodos, costo≃{used:.1f} / presupuesto {budget:.1f}"
 						except Exception as e:
 							self.last_message = f"Error plan puro: {e}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+					# Recalcular distancias mínimas desde origen y almacenar padres
+					if self.selected_origin is None:
+						self.last_message = "Selecciona origen antes de R"
+					else:
+						try:
+							# Ejecutar una sola vez Dijkstra
+							dist_map, parent_map = dijkstra(self.graph, self.selected_origin)
+							self.dists, self.parents = dist_map, parent_map
+							ordered = sorted(((sid, d) for sid, d in dist_map.items() if sid != self.selected_origin), key=lambda x: x[1])[:5]
+							self.last_message = "Top cercanas: " + ", ".join(f"{sid}:{dist:.1f}" for sid, dist in ordered)
+						except Exception as e:
+							self.last_message = f"Error Dijkstra: {e}"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_t:
 					# Mostrar reporte en una ventana (sin guardar a archivo)
 					if not self.planned_route:
@@ -690,6 +1101,10 @@ class GraphRenderer:
 							self.last_message = "Log exportado: simulation_log.json"
 					except Exception as e:
 						self.last_message = f"Error exportando log: {e}"
+				elif event.type == pygame.KEYDOWN and event.key == pygame.K_v:
+					# Toggle live report overlay (único toggle visual que preservamos)
+					self._live_report_enabled = not self._live_report_enabled
+					self.last_message = "Live report ON" if self._live_report_enabled else "Live report OFF"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_o:
 					# Reload JSON (burro y galaxias) desde UI
 					try:
@@ -708,6 +1123,10 @@ class GraphRenderer:
 						self.simulator = None
 						self._anim_active = False
 						self._dwell_active = False
+						# Reset baselines
+						self._max_life = float(getattr(self.donkey, 'vida_maxima', 100.0)) - float(getattr(self.donkey, 'edad', 0.0)) if self.donkey else 100.0
+						self._max_pasto = float(getattr(self.donkey, 'pasto_kg', 100.0)) if self.donkey else 100.0
+						self._alerts.clear()
 						self.last_message = "JSON recargado"
 					except Exception as e:
 						self.last_message = f"Error recargando JSON: {e}"
@@ -761,6 +1180,7 @@ class GraphRenderer:
 						if not self.simulator:
 							try:
 								self.simulator = Simulator(self.graph, self.donkey, self.planned_route)
+								self._set_stat_baselines()
 								self._last_step_time = 0.0
 								self._prepare_animation(reset_index=False)
 								self.sim_running = True
@@ -821,6 +1241,9 @@ class GraphRenderer:
 							self._prepare_animation(reset_index=False)
 						else:
 							if (now_ms - self._anim_start_ms) >= self._anim_duration_ms:
+								# Snapshot pre-step for movement deltas
+								self._pre_step_energy = float(self.simulator.state.energy_pct)
+								self._pre_step_life = float(self.simulator.state.life_remaining)
 								st = self.simulator.step()
 								self._anim_active = False
 								# sincronizar exactamente con el índice del simulador
@@ -829,11 +1252,14 @@ class GraphRenderer:
 									self._sound.play_death()
 									self.sim_running = False
 									self.last_message = "El burro ha muerto"
+									# Exportar reporte final automáticamente
+									self._auto_export_final_report()
 								elif st.finished:
 									self.sim_running = False
 									self.last_message = "Simulación finalizada"
+									self._auto_export_final_report()
 								else:
-									# Iniciar estadía visual en la estrella actual
+									# Iniciar estadía y activar panel de edición al llegar a la estrella
 									cur = self.simulator.state.current_star
 									star = self.graph.stars.get(cur)
 									if star:
@@ -845,6 +1271,23 @@ class GraphRenderer:
 										self._dwell_star = cur
 										self._dwell_start_ms = now_ms
 										self._dwell_duration_ms = dur
+										# Si es hipergigante, ofrecer salto a otra constelación
+										if getattr(star, 'hypergiant', False):
+											self._prepare_hyper_modal(cur)
+										# Panel de edición de vida
+										self._arrival_input_active = True
+										self._arrival_star_id = cur
+										try:
+											last = self.simulator.state.stars_log[-1] if self.simulator.state.stars_log else None
+											applied = float(last.get('life_delta', getattr(star, 'life_delta', 0.0))) if last and last.get('star') == cur else float(getattr(star, 'life_delta', 0.0))
+										except Exception:
+											applied = float(getattr(star, 'life_delta', 0.0))
+										self._arrival_prev_applied_delta = applied
+										self._arrival_input_value = f"{applied:.2f}"
+										# Pausar simulación hasta confirmar/cancelar
+										self.sim_running = False
+										# Crear alertas de deltas (movimiento y visita)
+										self._emit_visit_alerts()
 									# preparar siguiente animación en el próximo ciclo
 
 			self.draw(screen)
@@ -889,4 +1332,198 @@ class GraphRenderer:
 		self._anim_duration_ms = dur
 		self._anim_start_ms = pygame.time.get_ticks()
 		self._anim_active = True
+
+	def _prepare_hyper_modal(self, source_star_id: int):
+		"""Prepara lista de candidatos de otras constelaciones para salto hiper."""
+		self._hyper_source_star = source_star_id
+		source = self.graph.stars.get(source_star_id)
+		if not source:
+			self._hyper_modal_active = False
+			return
+		source_consts = set(getattr(source, 'constellations', []) or [])
+		cand: list[tuple[int,str,str]] = []
+		for sid, st in self.graph.stars.items():
+			if sid == source_star_id:
+				continue
+			cnames = list(getattr(st, 'constellations', []) or [])
+			# Elegir aquellos que no comparten constelación con el origen
+			if not source_consts.intersection(cnames):
+				primary = cnames[0] if cnames else "?"
+				cand.append((sid, st.label, primary))
+		# Ordenar por constelación y luego por id
+		cand.sort(key=lambda x: (x[2], x[0]))
+		self._hyper_candidates = cand
+		self._hyper_selected_idx = 0
+		self._hyper_modal_active = True
+
+	def _draw_hyper_modal(self, screen):
+		"""Dibuja un panel modal para elegir destino de hiper salto."""
+		f = self.font or self.small_font
+		if not f:
+			return
+		w = min(640, int(self.width * 0.8))
+		h = min(420, int(self.height * 0.7))
+		bx = (self.width - w) // 2
+		by = (self.height - h) // 2
+		pygame.draw.rect(screen, (0, 0, 0), (bx, by, w, h))
+		pygame.draw.rect(screen, (180, 180, 180), (bx, by, w, h), 2)
+		title = f.render("Salto Hipergigante: elige destino (otra galaxia)", True, (255, 230, 120))
+		screen.blit(title, (bx + 12, by + 10))
+		if not self._hyper_candidates:
+			msg = f.render("No hay destinos en otras galaxias.", True, (255, 120, 120))
+			screen.blit(msg, (bx + 12, by + 50))
+			return
+		# Lista con scroll simple (mostrar hasta 12)
+		max_rows = 12
+		start = max(0, min(self._hyper_selected_idx - max_rows // 2, max(0, len(self._hyper_candidates) - max_rows)))
+		view = self._hyper_candidates[start:start + max_rows]
+		y = by + 48
+		for i, (sid, label, cname) in enumerate(view):
+			row = f"[{sid}] {label}  <{cname}>"
+			col = (200, 230, 255) if (start + i) == self._hyper_selected_idx else (220, 220, 220)
+			img = f.render(row, True, col)
+			screen.blit(img, (bx + 20, y))
+			y += img.get_height() + 6
+		instr = (self.small_font or f).render("UP/DOWN=Seleccionar  Enter=Confirmar  Esc=Cancelar", True, (200, 200, 200))
+		screen.blit(instr, (bx + 12, by + h - 28))
+
+	def _auto_export_final_report(self):
+		"""Exporta final_report.json con estado y log actuales."""
+		try:
+			if not self.planned_route:
+				return
+			state = self.simulator.state if self.simulator else None
+			log = self.simulator.export_log() if self.simulator else []
+			report = build_final_report(self.graph, self.donkey, self.planned_route, state, log)
+			with open("final_report.json", "w", encoding="utf-8") as f:
+				json.dump(report, f, ensure_ascii=False, indent=2)
+			self.last_message = "Reporte final exportado (final_report.json)"
+		except Exception as e:
+			self.last_message = f"No se pudo exportar reporte final: {e}"
+
+	def _set_stat_baselines(self):
+		"""Fija los máximos para las barras (vida, pasto) al inicio de la simulación."""
+		if self.simulator:
+			self._max_life = float(self.simulator.state.life_remaining)
+			self._max_pasto = float(self.simulator.state.pasto_kg)
+		else:
+			self._max_life = float(getattr(self.donkey, 'vida_maxima', 100.0)) - float(getattr(self.donkey, 'edad', 0.0)) if self.donkey else 100.0
+			self._max_pasto = float(getattr(self.donkey, 'pasto_kg', 100.0)) if self.donkey else 100.0
+
+	def _emit_visit_alerts(self):
+		"""Crea alertas visuales con las variaciones de energía, vida y pasto.
+
+		Se apoya en el último registro de stars_log y en los snapshots previos al step.
+		"""
+		try:
+			if not self.simulator:
+				return
+			st = self.simulator.state
+			last = st.stars_log[-1] if st.stars_log else None
+			now = pygame.time.get_ticks()
+			dur = 2200
+			# Deltas por movimiento (antes de la visita): requiere snapshot
+			if self._pre_step_energy is not None and self._pre_step_life is not None and last:
+				energy_before_visit = float(last.get('energy_before', self._pre_step_energy))
+				life_before_visit = float(last.get('life_before', self._pre_step_life))
+				move_e_loss = self._pre_step_energy - energy_before_visit
+				move_l_loss = self._pre_step_life - life_before_visit
+				if move_e_loss > 0.01:
+					self._alerts.append({"text": f"- {move_e_loss:.1f}% energía (mov)", "color": (255,90,90), "t0": now, "dur": dur})
+				if move_l_loss > 0.01:
+					self._alerts.append({"text": f"- {move_l_loss:.1f} vida (mov)", "color": (255,160,90), "t0": now, "dur": dur})
+			# Deltas de la visita
+			if last:
+				kg = float(last.get('kg_eaten', 0.0))
+				if kg > 0.0:
+					self._alerts.append({"text": f"Comió {kg:.1f} kg", "color": (90,220,160), "t0": now, "dur": dur})
+				gain = float(last.get('energy_gain', 0.0))
+				cost = float(last.get('invest_cost', 0.0))
+				if gain > 0.01:
+					self._alerts.append({"text": f"+ {gain:.1f}% energía", "color": (120,240,120), "t0": now, "dur": dur})
+				if cost > 0.01:
+					self._alerts.append({"text": f"- {cost:.1f}% energía (invest)", "color": (255,120,120), "t0": now, "dur": dur})
+				ld = float(last.get('life_delta', 0.0))
+				if abs(ld) > 0.01:
+					col = (120,200,255) if ld > 0 else (255,140,80)
+					self._alerts.append({"text": f"Δ vida {ld:+.1f}", "color": col, "t0": now, "dur": dur})
+				if bool(last.get('hypergiant', False)):
+					self._alerts.append({"text": "Recarga hipergigante", "color": (255,230,120), "t0": now, "dur": dur})
+		except Exception:
+			pass
+
+	def _draw_top_bars(self, screen):
+		"""Dibuja barras de Energía, Vida y Pasto en la parte superior."""
+		pad = 8
+		x = pad
+		y = pad
+		h = 14
+		sep = 8
+		def draw_bar(label, value, max_value, color):
+			max_value = max(0.001, float(max_value))
+			value = max(0.0, float(value))
+			w = int(self.width * 0.28)
+			pct = max(0.0, min(1.0, value / max_value))
+			# fondo
+			pygame.draw.rect(screen, (20,20,25), (x, y, w, h))
+			pygame.draw.rect(screen, (120,120,130), (x, y, w, h), 1)
+			# barra
+			pygame.draw.rect(screen, color, (x+1, y+1, int((w-2) * pct), h-2))
+			# texto
+			if self.small_font:
+				text = f"{label}: {value:.1f} / {max_value:.1f}"
+				img = self.small_font.render(text, True, (230,230,230))
+				screen.blit(img, (x + 6, y - 14))
+			return w
+		# Valores actuales
+		if self.simulator:
+			curE = float(self.simulator.state.energy_pct)
+			curL = float(self.simulator.state.life_remaining)
+			curP = float(self.simulator.state.pasto_kg)
+		else:
+			curE = float(getattr(self.donkey, 'energia_pct', 100.0)) if self.donkey else 0.0
+			curL = float(getattr(self.donkey, 'vida_maxima', 100.0)) - float(getattr(self.donkey, 'edad', 0.0)) if self.donkey else 0.0
+			curP = float(getattr(self.donkey, 'pasto_kg', 0.0)) if self.donkey else 0.0
+		# Energía (0..100)
+		w1 = draw_bar("Energía", curE, 100.0, (90,200,120) if curE>50 else (220,180,80) if curE>20 else (230,80,80))
+		x += w1 + sep
+		# Vida (años luz)
+		w2 = draw_bar("Vida", curL, max(self._max_life, curL), (120,180,255))
+		x += w2 + sep
+		# Pasto (kg)
+		_ = draw_bar("Pasto", curP, max(self._max_pasto, curP), (170,220,120))
+
+	def _draw_alerts(self, screen):
+		"""Renderiza alertas efímeras en la parte superior, debajo de las barras."""
+		if not (self.small_font or self.font):
+			return
+		f = self.small_font or self.font
+		now = pygame.time.get_ticks()
+		# mantener solo vivas
+		self._alerts = [a for a in self._alerts if now - a.get('t0', 0) <= a.get('dur', 2000)]
+		if not self._alerts:
+			return
+		# base position (centro superior)
+		base_y = 30
+		spacing = 18
+		for i, a in enumerate(self._alerts[-5:]):
+			age = now - a['t0']
+			dur = max(1, a['dur'])
+			alpha = 255
+			if age > dur * 0.6:
+				alpha = int(255 * (1 - (age - dur * 0.6) / (dur * 0.4)))
+			alpha = max(0, min(255, alpha))
+			col = a.get('color', (255,255,255))
+			text = a.get('text', '')
+			surf = f.render(text, True, col)
+			try:
+				s = surf.convert_alpha()
+				s.set_alpha(alpha)
+			except Exception:
+				s = surf
+			x = (self.width - s.get_width()) // 2
+			y = base_y + i * spacing
+			# sombra
+			pygame.draw.rect(screen, (0,0,0), (x-6, y-2, s.get_width()+12, s.get_height()+4))
+			screen.blit(s, (x, y))
 

@@ -204,6 +204,21 @@ class GraphRenderer:
 		self._live_report_enabled = False
 		self._edge_events = []
 		self._clean_mode = False
+		# Reporte en pantalla (modal inline)
+		self._report_modal_active = False
+		self._report_lines: list[str] = []
+		self._report_scroll = 0
+		# Reporte automático al finalizar el recorrido
+		self.auto_show_report_on_finish = True
+		self._report_shown_once = False
+		# Modal de carga de archivos (carga automática desde GUI)
+		self._data_modal_active = False
+		self._data_files_burro: list[str] = []
+		self._data_files_galaxies: list[str] = []
+		self._data_sel_index_burro = 0
+		self._data_sel_index_galaxies = 0
+		self._data_focus_section = 'burro'  # 'burro' o 'galaxies'
+		self._data_last_load_msg = None
 
 	def _force_death_route(self) -> Tuple[list[int], float]:
 		"""Genera una ruta mínima hacia la estrella más cercana aunque exceda la vida.
@@ -635,6 +650,9 @@ class GraphRenderer:
 
 		# HUD mejorado
 		self._draw_hud(screen)
+		# Modal de selección de archivos (GUI)
+		if getattr(self, '_data_modal_active', False):
+			self._draw_data_modal(screen)
 
 		# Modal de selección de hipersalto si está activo
 		if self.hyperjump_active:
@@ -710,6 +728,10 @@ class GraphRenderer:
 		# Overlay de reporte en vivo
 		if self._live_report_enabled:
 			self._draw_live_report(screen)
+
+		# Modal de reporte final inline
+		if self._report_modal_active:
+			self._draw_report_modal(screen)
 
 	def _draw_grid(self, screen):
 		"""Draw a simple screen-space grid inside the margin box."""
@@ -893,17 +915,18 @@ class GraphRenderer:
 		self._draw_legend(screen, (lpanel.x + 10, lpanel.y + 28))
 		# Help panel (bottom-right)
 		if self.show_help:
-			hpanel = pygame.Rect(self.width - 500 - pad, self.height - 160 - pad, 500, 160)
+			hpanel = pygame.Rect(self.width - 500 - pad, self.height - 180 - pad, 500, 180)
 			self._draw_panel(screen, hpanel, title="Ayuda (/? para ocultar)")
 			help_lines = [
 				"Click: Origen | C: Limpiar | B: Bloquear arista | Shift+G: Grid",
-				"R: Dijkstra | P: Mostrar ruta hover",
-				"G: Ruta Óptima (Modo 2) | Y: Óptima++ (Beam) | H: Máx estrellas (Modo 1)",
+				"G: Ruta óptima (Modo 2) | Y: Óptima++ (Beam) | H: Máx. estrellas (Modo 1)",
 				"Wheel: Zoom | RMB/MMB Drag: Pan | Quitar enfoque const: `",
 				"TAB: Enfocar constelación | Space/N: Play/Paso | +/-: Velocidad | X: Turbo | A: Auto-plan click",
-				"Shift+J: Auto-hipersalto | J: Selector hipersalto manual",
+				"Shift+J: Auto-hipersalto | J: Selector hipersalto (en hipergigante)",
 				"E: Editar estrella (J/K,U/I,M) | S: Guardar edits",
-				"O: Recargar JSON | F1/F2: Cargar burro/galaxias | F: Coords",
+				"O: Recargar JSON (Shift abre selector) | F1/F2: Cargar burro/galaxias (Shift=selector interno)",
+				"F3: Selector interno de archivos (burro/galaxies) | F: Coords | V: Live report",
+				"[ / ]: Ajustar vida disponible (Shift = paso grande)",
 				"T: Reporte | L: Exportar Log | ESC: Salir",
 			]
 			y = hpanel.y + 28
@@ -1104,6 +1127,79 @@ class GraphRenderer:
 		running = True
 		while running:
 			for event in pygame.event.get():
+				# Modal de selección de archivos tiene máxima prioridad si activo
+				if getattr(self, '_data_modal_active', False):
+					if event.type == pygame.KEYDOWN:
+						if event.key in (pygame.K_ESCAPE,):
+							self._data_modal_active = False
+							self.last_message = "Carga cancelada"
+							continue
+						elif event.key == pygame.K_TAB:
+							self._data_focus_section = 'galaxies' if self._data_focus_section == 'burro' else 'burro'
+							continue
+						elif event.key in (pygame.K_UP, pygame.K_w):
+							if self._data_focus_section == 'burro':
+								self._data_sel_index_burro = max(0, self._data_sel_index_burro - 1)
+							else:
+								self._data_sel_index_galaxies = max(0, self._data_sel_index_galaxies - 1)
+							continue
+						elif event.key in (pygame.K_DOWN, pygame.K_s):
+							if self._data_focus_section == 'burro':
+								self._data_sel_index_burro = min(max(0, len(self._data_files_burro)-1), self._data_sel_index_burro + 1)
+							else:
+								self._data_sel_index_galaxies = min(max(0, len(self._data_files_galaxies)-1), self._data_sel_index_galaxies + 1)
+							continue
+						elif event.key in (pygame.K_r,):
+							self._scan_data_files()
+							self.last_message = "Listado actualizado"
+							continue
+						elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+							try:
+								try:
+									from src.core.loader import Loader as _Loader
+								except ModuleNotFoundError:
+									from core.loader import Loader as _Loader
+								burro_path = self._data_files_burro[self._data_sel_index_burro] if self._data_files_burro else None
+								galaxies_path = self._data_files_galaxies[self._data_sel_index_galaxies] if self._data_files_galaxies else None
+								if burro_path and galaxies_path:
+									loader = _Loader(path_burro=burro_path, path_galaxies=galaxies_path)
+									self.donkey, self.graph = loader.load()
+									_ = loader.load_ui_config(required=True)
+									self._compute_palette()
+									self._compute_transform()
+									self._data_modal_active = False
+									self.last_message = f"Cargado: {os.path.basename(burro_path)}, {os.path.basename(galaxies_path)}"
+								else:
+									self.last_message = "No hay archivos seleccionables"
+							except Exception as e:
+								self.last_message = f"Error cargando: {e}"
+							continue
+					# Consumir eventos mientras activo
+					continue
+				# Report modal has priority when active: handle close and scroll
+				if getattr(self, '_report_modal_active', False):
+					if event.type == pygame.KEYDOWN:
+						if event.key in (pygame.K_ESCAPE, pygame.K_q):
+							self._report_modal_active = False
+							self.last_message = "Reporte cerrado"
+							continue
+						elif event.key == pygame.K_PAGEUP:
+							self._report_scroll = max(0, self._report_scroll - 200)
+							continue
+						elif event.key == pygame.K_PAGEDOWN:
+							self._report_scroll = self._report_scroll + 200
+							continue
+						elif event.key in (pygame.K_UP, pygame.K_w):
+							self._report_scroll = max(0, self._report_scroll - 40)
+							continue
+						elif event.key in (pygame.K_DOWN, pygame.K_s):
+							self._report_scroll = self._report_scroll + 40
+							continue
+					elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (4,5):
+						# Wheel scroll
+						delta = -80 if event.button == 4 else 80
+						self._report_scroll = max(0, self._report_scroll + delta)
+						continue
 				# Hypergiant modal has highest priority when active
 				if getattr(self, '_hyper_modal_active', False):
 					if event.type == pygame.KEYDOWN:
@@ -1474,20 +1570,18 @@ class GraphRenderer:
 						except Exception as e:
 							self.last_message = f"Error Modo 1: {e}"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_t:
-					# Mostrar reporte en una ventana (sin guardar a archivo)
+					# Mostrar reporte inline y guardar JSON
 					if not self.planned_route:
 						self.last_message = "No hay plan para reportar"
 					else:
 						try:
 							budget = energy_budget_from_donkey(self.donkey) if self.donkey else 0.0
-							# Si hay simulación, usar datos finales; si no, mostrar solo plan
 							state = self.simulator.state if self.simulator else None
 							log = self.simulator.export_log() if self.simulator else []
 							report = build_final_report(self.graph, self.donkey, self.planned_route, state, log)
-							# Rellenar costo estimado del plan en la cabecera para mantener compatibilidad
 							report["total_cost_estimate"] = budget
-							viewer = ReportViewer(report, title="Reporte del Recorrido", size=(900, 700))
-							viewer.run()
+							# Abrir modal inline
+							self._open_report_modal(report)
 							# Guardar automáticamente a carpeta reports
 							try:
 								os.makedirs("reports", exist_ok=True)
@@ -1539,6 +1633,11 @@ class GraphRenderer:
 						self._max_pasto = float(getattr(self.donkey, 'pasto_kg', 100.0)) if self.donkey else 100.0
 						self._alerts.clear()
 						self.last_message = "JSON recargado"
+						# Carga automática: abrir modal de selección si se mantiene Shift presionado
+						if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+							self._scan_data_files()
+							self._data_modal_active = True
+							self.last_message = "Selector de archivos abierto (Shift+O)"
 					except Exception as e:
 						self.last_message = f"Error recargando JSON: {e}"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_F1:
@@ -1559,6 +1658,11 @@ class GraphRenderer:
 							self.last_message = f"Burro cargado: {os.path.basename(path)}"
 						else:
 							self.last_message = "Selección cancelada"
+						# Shift+F1: abrir modal interno
+						if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+							self._scan_data_files()
+							self._data_modal_active = True
+							self.last_message = "Selector interno abierto (Shift+F1)"
 					except Exception as e:
 						self.last_message = f"Error al cargar burro.json: {e}"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_F2:
@@ -1581,6 +1685,11 @@ class GraphRenderer:
 							self.last_message = f"Galaxias cargadas: {os.path.basename(path)}"
 						else:
 							self.last_message = "Selección cancelada"
+						# Shift+F2: abrir modal interno en lugar de diálogo TK
+						if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+							self._scan_data_files()
+							self._data_modal_active = True
+							self.last_message = "Selector interno abierto (Shift+F2)"
 					except Exception as e:
 						self.last_message = f"Error al cargar galaxies.json: {e}"
 				elif event.type == pygame.KEYDOWN and event.key == pygame.K_s and not self._edit_mode:
@@ -1784,6 +1893,11 @@ class GraphRenderer:
 						if st.dead:
 							self._sound.play_death()
 							self.last_message += " | MUERTE"
+							if self.auto_show_report_on_finish and not self._report_shown_once:
+								self._show_final_report()
+						elif st.finished:
+							if self.auto_show_report_on_finish and not self._report_shown_once:
+								self._show_final_report()
 					# (removed erroneous else-block using undefined now_ms)
 
 			# Actualización de simulación y animación (auto-run)
@@ -1813,9 +1927,15 @@ class GraphRenderer:
 								self._sound.play_death()
 								self.last_message += " | MUERTE"
 								self.sim_running = False
+								# Mostrar reporte final automáticamente
+								if hasattr(self, 'auto_show_report_on_finish') and self.auto_show_report_on_finish and not self._report_shown_once:
+									self._show_final_report()
 							elif st.finished:
 								self.sim_running = False
 								self.last_message += " | Ruta completada"
+								# Mostrar reporte final automáticamente
+								if hasattr(self, 'auto_show_report_on_finish') and self.auto_show_report_on_finish and not self._report_shown_once:
+									self._show_final_report()
 							else:
 								# Auto-abrir selector de hipersalto si corresponde
 								cur_star = self.graph.stars.get(st.current_star)
@@ -1950,6 +2070,162 @@ class GraphRenderer:
 			self.last_message = "Reporte final exportado (final_report.json)"
 		except Exception as e:
 			self.last_message = f"No se pudo exportar reporte final: {e}"
+
+	def _show_final_report(self):
+		"""Genera y muestra el reporte final en modal inline (solo una vez)."""
+		if self._report_shown_once:
+			return
+		try:
+			if not self.planned_route:
+				self._report_shown_once = True
+				return
+			state = self.simulator.state if self.simulator else None
+			log = self.simulator.export_log() if self.simulator else []
+			report = build_final_report(self.graph, self.donkey, self.planned_route, state, log)
+			try:
+				budget = energy_budget_from_donkey(self.donkey) if self.donkey else 0.0
+				report["total_cost_estimate"] = budget
+			except Exception:
+				pass
+			self._open_report_modal(report)
+			os.makedirs("reports", exist_ok=True)
+			stamp = time.strftime('%Y%m%d_%H%M%S')
+			path = os.path.join("reports", f"final_report_{stamp}.json")
+			with open(path, "w", encoding="utf-8") as f:
+				json.dump(report, f, ensure_ascii=False, indent=2)
+			self.last_message = f"Reporte final guardado en {path}"
+		except Exception as e:
+			self.last_message = f"Error reporte final: {e}"
+		finally:
+			self._report_shown_once = True
+
+	def _open_report_modal(self, report: dict):
+			# Construye líneas de texto legibles del dict
+			self._report_lines = []
+			self._report_lines.append("== REPORTE DEL RECORRIDO ==")
+			self._report_lines.append(f"Generado: {report.get('generated_at','')}")
+			self._report_lines.append(f"Ruta: {report.get('route_length')} estrellas | Costo estimado: {report.get('total_cost_estimate')}")
+			self._report_lines.append("-- Estrellas --")
+			for s in report.get('stars', []):
+				flags = []
+				if s.get('hypergiant'): flags.append('H')
+				if s.get('shared'): flags.append('S')
+				fl = '['+','.join(flags)+']' if flags else ''
+				self._report_lines.append(f"[{s.get('index')}] id={s.get('id')} {s.get('label')} {fl} const={','.join(s.get('constellations',[]))}")
+			final = report.get('final', {})
+			if final:
+				self._report_lines.append("-- Estado final --")
+				self._report_lines.append(f"E%={final.get('final_energy_pct')} Pasto={final.get('final_pasto_kg')} VidaRest={final.get('final_life_remaining')} Dead={final.get('dead')} Finished={final.get('finished')}")
+			visit_detail = report.get('stars_visit_detail', [])
+			if visit_detail:
+				self._report_lines.append("-- Visitas --")
+				for d in visit_detail[:100]:  # limitar para no saturar
+					self._report_lines.append(
+						f"Star {d['star']} kg={d.get('kg_eaten',0):.2f} ΔE={d.get('energy_gain',0):.2f} invCost={d.get('invest_cost',0):.2f} vidaΔ={d.get('life_delta',0):.2f} E:{d.get('energy_before',0):.1f}->{d.get('energy_after',0):.1f}"
+					)
+			log = report.get('simulation_log', [])
+			if log:
+				self._report_lines.append("-- Log eventos --")
+				for e in log[:120]:
+					if e.get('event') == '...trimmed...':
+						self._report_lines.append(f"... {e.get('count')} eventos omitidos ...")
+					else:
+						self._report_lines.append(f"tick={e.get('tick')} star={e.get('star')} evt={e.get('event')} E={e.get('energy_pct'):.1f} Vida={e.get('life_remaining'):.1f}")
+			self._report_lines.append("ESC/Q: cerrar | PageUp/PageDown/Wheel: scroll")
+			self._report_modal_active = True
+			self._report_scroll = 0
+
+	def _draw_report_modal(self, screen):
+			if not (self.font or self.small_font):
+				return
+			f = self.small_font or self.font
+			w = int(self.width * 0.92)
+			h = int(self.height * 0.88)
+			bx = (self.width - w)//2
+			by = (self.height - h)//2
+			# Fondo translúcido
+			over = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+			over.fill((0,0,0,180))
+			screen.blit(over, (0,0))
+			pygame.draw.rect(screen, (10,10,16), (bx,by,w,h))
+			pygame.draw.rect(screen, (160,160,190), (bx,by,w,h), 2)
+			# Área de texto con scroll
+			clip = screen.get_clip()
+			text_area = pygame.Rect(bx+12, by+12, w-24, h-24)
+			screen.set_clip(text_area)
+			y = text_area.y - self._report_scroll
+			for line in self._report_lines:
+				img = f.render(line, True, (230,230,230) if not line.startswith('==') else (255,220,90))
+				screen.blit(img, (text_area.x, y))
+				y += img.get_height()+4
+			screen.set_clip(clip)
+			# Indicador de scroll
+			pygame.draw.rect(screen, (50,50,70), (bx+w-20, by+12, 8, h-24))
+			content_h = y - (text_area.y - self._report_scroll)
+			if content_h > text_area.height:
+				p = min(1.0, max(0.0, self._report_scroll / (content_h - text_area.height)))
+				bar_h = max(24, int(text_area.height * (text_area.height / content_h)))
+				bar_y = int(by+12 + (h-24 - bar_h) * p)
+				pygame.draw.rect(screen, (180,180,210), (bx+w-20, bar_y, 8, bar_h))
+
+	def _scan_data_files(self):
+			"""Escanea la carpeta 'data' para listar candidatos burro*.json y galaxies*.json."""
+			try:
+				files = [f for f in os.listdir('data') if f.lower().endswith('.json')]
+			except Exception:
+				files = []
+			burro = [os.path.join('data', f) for f in files if 'burro' in f.lower()]
+			galax = [os.path.join('data', f) for f in files if 'galax' in f.lower() or 'constell' in f.lower()]
+			self._data_files_burro = sorted(burro)
+			self._data_files_galaxies = sorted(galax)
+			self._data_sel_index_burro = 0 if self._data_files_burro else 0
+			self._data_sel_index_galaxies = 0 if self._data_files_galaxies else 0
+
+	def _draw_data_modal(self, screen):
+			f = self.small_font or self.font
+			w = int(self.width * 0.85)
+			h = int(self.height * 0.75)
+			bx = (self.width - w)//2
+			by = (self.height - h)//2
+			over = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+			over.fill((0,0,0,200))
+			screen.blit(over, (0,0))
+			pygame.draw.rect(screen, (15,15,25), (bx,by,w,h))
+			pygame.draw.rect(screen, (140,140,180), (bx,by,w,h), 2)
+			title = f.render("Cargar archivos (F3) - TAB cambia sección - Enter aplica - R recarga - Esc cierra", True, (230,230,80))
+			screen.blit(title, (bx+12, by+12))
+			# Secciones
+			section_w = (w - 36) // 2
+			burro_rect = pygame.Rect(bx+12, by+44, section_w, h-56)
+			galax_rect = pygame.Rect(bx+24+section_w, by+44, section_w, h-56)
+			pygame.draw.rect(screen, (25,25,40), burro_rect)
+			pygame.draw.rect(screen, (25,25,40), galax_rect)
+			pygame.draw.rect(screen, (100,100,130), burro_rect, 1 if self._data_focus_section=='burro' else 0)
+			pygame.draw.rect(screen, (100,100,130), galax_rect, 1 if self._data_focus_section=='galaxies' else 0)
+			bh = f.render("burro.json", True, (200,200,220))
+			gh = f.render("galaxies.json", True, (200,200,220))
+			screen.blit(bh, (burro_rect.x+8, burro_rect.y+4))
+			screen.blit(gh, (galax_rect.x+8, galax_rect.y+4))
+			# Listas
+			yb = burro_rect.y + 28
+			for i, path in enumerate(self._data_files_burro):
+				name = os.path.basename(path)
+				col = (40,220,140) if i == self._data_sel_index_burro and self._data_focus_section=='burro' else (220,220,220)
+				img = f.render(name, True, col)
+				screen.blit(img, (burro_rect.x+8, yb)); yb += img.get_height()+4
+			yg = galax_rect.y + 28
+			for i, path in enumerate(self._data_files_galaxies):
+				name = os.path.basename(path)
+				col = (40,220,140) if i == self._data_sel_index_galaxies and self._data_focus_section=='galaxies' else (220,220,220)
+				img = f.render(name, True, col)
+				screen.blit(img, (galax_rect.x+8, yg)); yg += img.get_height()+4
+			if not self._data_files_burro:
+				img = f.render("(sin burro*.json)", True, (200,100,100))
+				screen.blit(img, (burro_rect.x+8, yb))
+			if not self._data_files_galaxies:
+				img = f.render("(sin galaxies*.json)", True, (200,100,100))
+				screen.blit(img, (galax_rect.x+8, yg))
+
 
 	def _set_stat_baselines(self):
 		"""Fija los máximos para las barras (vida, pasto) al inicio de la simulación."""

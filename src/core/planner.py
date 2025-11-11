@@ -328,7 +328,8 @@ def greedy_max_visits_pure(graph: Graph, source: int, donkey: Donkey, include_bl
         used_life += best_move_cost
         current = best_node
         remaining.discard(best_node)
-    return route, used
+    # Se retorna la energía usada como métrica principal de costo (consistente con otros planners que retornan un único float)
+    return route, used_energy
 
 
 def max_stars_before_death(graph: Graph, source: int, donkey: Donkey, include_blocked: bool = False) -> Tuple[List[int], float]:

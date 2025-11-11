@@ -1,0 +1,149 @@
+{
+  "generated_at": "2025-11-11T19:27:01Z",
+  "donkey": {
+    "id": 123,
+    "salud": "Excelente",
+    "energia_pct_inicial": 100.0,
+    "pasto_kg_inicial": 300.0,
+    "edad_inicial": 100.0,
+    "vida_maxima": 400.0
+  },
+  "route_length": 6,
+  "total_cost_estimate": 300.0,
+  "stars": [
+    {
+      "index": 0,
+      "id": 15,
+      "label": "Lambda15",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 1,
+      "id": 17,
+      "label": "Mu17",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 2,
+      "id": 12,
+      "label": "Beta178",
+      "constellations": [
+        "Constelación de la Araña"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 3,
+      "id": 3,
+      "label": "Alpha53",
+      "constellations": [
+        "Constelación de la Araña",
+        "Constelación del Burro"
+      ],
+      "hypergiant": true,
+      "shared": true
+    },
+    {
+      "index": 4,
+      "id": 2,
+      "label": "Beta23",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    },
+    {
+      "index": 5,
+      "id": 7,
+      "label": "Epsilon7",
+      "constellations": [
+        "Constelación del Burro"
+      ],
+      "hypergiant": false,
+      "shared": false
+    }
+  ],
+  "final": {
+    "final_energy_pct": 100.0,
+    "final_pasto_kg": 300.0,
+    "final_life_remaining": 47.0,
+    "ticks": 5,
+    "dead": false,
+    "finished": false,
+    "visited_unique": 0,
+    "totals": {
+      "kg_eaten": 0,
+      "energy_gain": 0,
+      "invest_cost": 0,
+      "time_eating": 0,
+      "time_investigating": 0
+    }
+  },
+  "stars_visit_detail": [],
+  "simulation_log": [
+    {
+      "tick": 1,
+      "event": "visit",
+      "star": 17,
+      "energy_pct": 100.0,
+      "pasto_kg": 300.0,
+      "life_remaining": 211.0,
+      "hypergiant": false,
+      "distance": 89.0
+    },
+    {
+      "tick": 2,
+      "event": "visit",
+      "star": 12,
+      "energy_pct": 100.0,
+      "pasto_kg": 300.0,
+      "life_remaining": 124.0,
+      "hypergiant": false,
+      "distance": 87.0
+    },
+    {
+      "tick": 3,
+      "event": "visit",
+      "star": 3,
+      "energy_pct": 100.0,
+      "pasto_kg": 300.0,
+      "life_remaining": 109.0,
+      "hypergiant": true,
+      "distance": 15.0
+    },
+    {
+      "tick": 4,
+      "event": "visit",
+      "star": 2,
+      "energy_pct": 100.0,
+      "pasto_kg": 300.0,
+      "life_remaining": 92.0,
+      "hypergiant": false,
+      "distance": 17.0
+    },
+    {
+      "tick": 5,
+      "event": "visit",
+      "star": 7,
+      "energy_pct": 100.0,
+      "pasto_kg": 300.0,
+      "life_remaining": 47.0,
+      "hypergiant": false,
+      "distance": 45.0
+    }
+  ],
+  "constellations_visited": [
+    "Constelación de la Araña",
+    "Constelación del Burro"
+  ]
+}
